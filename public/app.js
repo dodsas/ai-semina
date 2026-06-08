@@ -66,8 +66,16 @@ const el = {
   loginPw: document.getElementById('login-pw'),
   loginErr: document.getElementById('login-err'),
   loginSubmit: document.getElementById('login-submit'),
-  loginCancel: document.getElementById('login-cancel')
+  loginCancel: document.getElementById('login-cancel'),
+  loading: document.getElementById('loading')
 };
+
+// 로딩 스피너 (동시 호출 대비 카운터)
+let loadingCount = 0;
+function setLoading(on) {
+  loadingCount = Math.max(0, loadingCount + (on ? 1 : -1));
+  el.loading.hidden = loadingCount === 0;
+}
 
 const pad = (n) => String(n).padStart(2, '0');
 const dateStr = (day) => `${YEAR}-${pad(MONTH)}-${pad(day)}`;
@@ -109,13 +117,22 @@ async function selectTeam(teamId) {
   state.completedOpen = false;
   state.adminPick = null;
   el.memberExtra.hidden = true;
+  // 이전 팀 데이터 비우고 즉시 렌더 (탭 전환 체감 지연 제거)
+  state.votesByDate = {};
+  state.confirmed = [];
   renderTabs();
   setSaveStatus('');
-  await loadVotes();      // 완료자 판별을 위해 먼저 투표 데이터 로드
   renderMembers();
   updatePickerInfo();
   renderCalendar();
   updateConfirmBtn();
+  renderConfirmBanner();
+  updateAdminInfo();
+  // 투표/확정 데이터는 백그라운드로 로드 후 다시 렌더
+  await loadVotes();
+  if (state.currentTeam !== teamId) return; // 로딩 중 다른 팀 선택 시 무시
+  renderMembers();
+  renderCalendar();
   renderConfirmBanner();
   updateAdminInfo();
   if (isAdmin()) loadMemberInfoTable();
@@ -196,11 +213,16 @@ function selectMember(name) {
 }
 
 async function loadVotes() {
-  const res = await fetch(`/api/votes?team=${encodeURIComponent(state.currentTeam)}`);
-  const data = await res.json();
-  state.votesByDate = data.votes || {};
-  state.confirmed = Array.isArray(data.confirmed) ? data.confirmed : [];
-  if (data.seminarTime) state.seminarTime = data.seminarTime;
+  setLoading(true);
+  try {
+    const res = await fetch(`/api/votes?team=${encodeURIComponent(state.currentTeam)}`);
+    const data = await res.json();
+    state.votesByDate = data.votes || {};
+    state.confirmed = Array.isArray(data.confirmed) ? data.confirmed : [];
+    if (data.seminarTime) state.seminarTime = data.seminarTime;
+  } finally {
+    setLoading(false);
+  }
 }
 
 function renderCalendar() {
@@ -323,6 +345,7 @@ el.confirmBtn.onclick = async () => {
   const dates = [...state.selected];
   el.confirmBtn.disabled = true;
   setSaveStatus('저장 중...');
+  setLoading(true);
   try {
     await saveMemberInfo(); // 추가정보 먼저 저장
     const res = await fetch('/api/votes', {
@@ -347,6 +370,7 @@ el.confirmBtn.onclick = async () => {
     setSaveStatus('✗ 저장 실패. 다시 시도하세요.');
   } finally {
     el.confirmBtn.disabled = false;
+    setLoading(false);
   }
 };
 
@@ -403,6 +427,7 @@ async function loadMemberExtra(name) {
   document.querySelectorAll('.ai-chk').forEach((c) => { c.checked = false; });
   el.infoEtc.value = '';
   syncInfoModalState();
+  setLoading(true);
   try {
     const res = await fetch(
       `/api/member-info?team=${encodeURIComponent(state.currentTeam)}&member=${encodeURIComponent(name)}`
@@ -415,7 +440,9 @@ async function loadMemberExtra(name) {
     });
     el.infoEtc.value = data.etc || '';
     syncInfoModalState();
-  } catch (_) { /* 무시 */ }
+  } catch (_) { /* 무시 */ } finally {
+    setLoading(false);
+  }
 }
 
 // 현재 인라인 폼의 선택값
@@ -449,6 +476,7 @@ async function saveMemberInfo() {
 async function loadMemberInfoTable() {
   if (!isAdmin()) return;
   el.adminInfoTeam.textContent = `(${currentTeam().name})`;
+  setLoading(true);
   try {
     const res = await fetch(`/api/admin/member-info?team=${encodeURIComponent(state.currentTeam)}`, {
       headers: { Authorization: `Bearer ${state.adminToken}` }
@@ -460,6 +488,8 @@ async function loadMemberInfoTable() {
   } catch (err) {
     console.error(err);
     el.memberInfoTable.innerHTML = '<p class="empty-note">현황을 불러오지 못했습니다.</p>';
+  } finally {
+    setLoading(false);
   }
 }
 

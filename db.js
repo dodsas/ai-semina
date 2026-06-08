@@ -10,9 +10,11 @@ if (!url || !authToken) {
   process.exit(1);
 }
 
+// 원격 Turso 클라이언트. (임베디드 레플리카는 요청당 동기화 오버헤드로 오히려 느려
+// 사용하지 않음 — 대신 /api/votes 의 조회를 batch 로 묶어 왕복을 최소화)
 export const db = createClient({ url, authToken });
 
-// 투표 데이터는 DB 에 영구 저장됩니다. (member = "팀id::이름" 형태로 식별)
+// 투표 데이터는 DB 에 영구 저장됩니다.
 export async function initDb() {
   await db.execute(`
     CREATE TABLE IF NOT EXISTS votes (

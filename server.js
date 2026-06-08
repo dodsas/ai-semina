@@ -57,19 +57,19 @@ app.get('/api/votes', async (req, res) => {
     return res.status(400).json({ error: 'unknown team' });
   }
   try {
-    const result = await db.execute({
-      sql: 'SELECT member, vote_date FROM votes WHERE team = ? ORDER BY vote_date',
-      args: [team]
-    });
+    // 두 조회를 한 번의 batch 로 묶어 왕복 최소화
+    const [result, conf] = await db.batch(
+      [
+        { sql: 'SELECT member, vote_date FROM votes WHERE team = ? ORDER BY vote_date', args: [team] },
+        { sql: 'SELECT vote_date FROM confirmed WHERE team = ? ORDER BY vote_date', args: [team] }
+      ],
+      'read'
+    );
     // { '2026-06-12': ['김양헌', ...], ... }
     const byDate = {};
     for (const row of result.rows) {
       (byDate[row.vote_date] ??= []).push(row.member);
     }
-    const conf = await db.execute({
-      sql: 'SELECT vote_date FROM confirmed WHERE team = ? ORDER BY vote_date',
-      args: [team]
-    });
     const confirmed = conf.rows.map((r) => r.vote_date);
     res.json({ team, votes: byDate, confirmed, seminarTime: SEMINAR_TIME });
   } catch (err) {
