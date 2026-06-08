@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>세미나 일정잡으려고 30분만에 만든 웹서비스</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <button id="admin-btn" class="admin-btn">관리자 로그인</button>
+
+  <header>
+    <h1>세미나 일정잡으려고 30분만에 만든 웹서비스</h1>
+    <p class="sub">팀을 선택하고 본인 이름을 누른 뒤, 가능한 날짜를 골라 투표하세요.</p>
+    <p class="time-fixed">⏰ 세미나 시간은 <strong>15:00</strong> 고정입니다.</p>
+  </header>
+
+  <nav id="tabs" class="tabs"></nav>
+
+  <main>
+    <section id="member-panel" class="panel">
+      <h2 class="panel-title">1. 본인 선택</h2>
+      <div id="members" class="members"></div>
+      <div id="member-extra" class="member-extra-box" hidden>
+        <h3 class="extra-title">추가정보 — 구독 중인 AI 계정 <span class="req">* 필수</span></h3>
+        <p class="modal-sub">
+          <strong id="member-extra-label"></strong> · 무료 모델 제외,
+          <strong>돈 내고 쓰는 유료(구독) 계정</strong>만 선택하세요. (중복 선택 가능)
+        </p>
+        <label class="chk"><input type="checkbox" class="ai-chk" value="CLAUDE" /> Claude (유료)</label>
+        <label class="chk"><input type="checkbox" class="ai-chk" value="CHATGPT" /> ChatGPT (유료)</label>
+        <label class="chk"><input type="checkbox" class="ai-chk" value="OTHER" /> 기타</label>
+        <input id="info-etc" type="text" placeholder="기타 — 직접 입력 (예: Gemini, Perplexity)" disabled />
+        <label class="chk none"><input type="checkbox" class="ai-chk" value="NONE" /> 없음</label>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2 class="panel-title">2. 2026년 6월 — 가능한 날짜 선택</h2>
+      <div id="confirm-banner" class="confirm-banner" hidden></div>
+      <div class="cal-head">
+        <span class="cal-month">2026. 06</span>
+        <span id="picker-info" class="picker-info">본인을 먼저 선택하세요.</span>
+      </div>
+      <div id="calendar" class="calendar"></div>
+
+      <div id="vote-actions" class="actions">
+        <button id="confirm-btn" class="btn-primary" disabled>확인 (투표 저장)</button>
+        <span id="save-status" class="save-status"></span>
+      </div>
+
+      <div id="admin-bar" class="admin-bar" hidden>
+        <span class="admin-tag">관리자 모드</span>
+        <span id="admin-info" class="picker-info">달력에서 날짜를 클릭한 뒤 확정하세요. (최대 3개)</span>
+        <div class="admin-actions">
+          <button id="set-confirm-btn" class="btn-confirm" disabled>날짜를 선택하세요</button>
+          <button id="clear-confirm-btn" class="btn-clear">전체 확정 취소</button>
+        </div>
+        <div class="admin-danger">
+          <button id="clear-data-btn" class="btn-danger">⚠ 이 팀 데이터 초기화 (투표·확정 전체 삭제)</button>
+        </div>
+      </div>
+
+      <p class="legend">
+        <span class="swatch mine"></span> 내 선택
+        <span class="swatch others"></span> 다른 사람 투표 (숫자 = 인원)
+        <span class="swatch confirmed"></span> 확정 일정
+      </p>
+    </section>
+  </main>
+
+  <section id="admin-info-panel" class="panel" hidden>
+    <div class="panel-head-row">
+      <h2 class="panel-title">📊 구독 AI 현황 <span id="admin-info-team"></span></h2>
+      <button id="refresh-info-btn" class="btn-secondary">새로고침</button>
+    </div>
+    <div id="member-info-table" class="info-table"></div>
+  </section>
+
+  <div id="login-modal" class="modal" hidden>
+    <div class="modal-box">
+      <h3>관리자 로그인</h3>
+      <input id="login-id" type="text" placeholder="아이디" autocomplete="username" />
+      <input id="login-pw" type="password" placeholder="비밀번호" autocomplete="current-password" />
+      <p id="login-err" class="login-err"></p>
+      <div class="modal-actions">
+        <button id="login-cancel" class="btn-clear">취소</button>
+        <button id="login-submit" class="btn-primary">로그인</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

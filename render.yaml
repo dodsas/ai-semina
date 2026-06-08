@@ -1,0 +1,22 @@
+# Render Blueprint
+# 배포: Render 대시보드 → New + → Blueprint → 이 저장소 선택
+# 최초 배포 시 sync:false 인 환경변수(TURSO_URL/TURSO_TOKEN/ADMIN/PW)를 입력받습니다.
+services:
+  - type: web
+    name: ai-semina
+    runtime: node
+    plan: free
+    region: singapore        # Turso DB(ap-northeast-1, 도쿄)와 가까운 리전
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /
+    autoDeploy: true
+    envVars:
+      - key: TURSO_URL        # libsql://...turso.io
+        sync: false
+      - key: TURSO_TOKEN      # Turso 인증 토큰(JWT)
+        sync: false
+      - key: ADMIN            # 관리자 로그인 아이디
+        sync: false
+      - key: PW               # 관리자 로그인 비밀번호
+        sync: false

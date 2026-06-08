@@ -1,0 +1,674 @@
+'use strict';
+
+const YEAR = 2026;
+const MONTH = 6; // 6월
+const DOW = ['일', '월', '화', '수', '목', '금', '토'];
+
+const state = {
+  teams: [],
+  currentTeam: null,   // team id
+  member: null,        // 선택한 본인 이름
+  votesByDate: {},     // { '2026-06-12': [member, ...] }
+  selected: new Set(), // 본인이 고른 날짜들 (yyyy-mm-dd)
+  completedOpen: false,// '투표 완료' 섹션 펼침 여부
+  confirmed: [],       // 확정된 날짜 배열 (최대 3개)
+  seminarTime: '15:00',
+  adminToken: localStorage.getItem('adminToken') || null,
+  adminPick: null      // 관리자가 확정하려고 고른 날짜
+};
+
+const MAX_CONFIRMED = 3;
+const isAdmin = () => !!state.adminToken;
+
+// 구독 AI 코드 → 표시 라벨
+const AI_LABEL = { CLAUDE: 'Claude', CHATGPT: 'ChatGPT', NONE: '없음', OTHER: '기타' };
+function aiText(accounts, etc) {
+  if (!accounts || !accounts.length) return '미입력';
+  return accounts
+    .map((a) => (a === 'OTHER' && etc ? `기타(${etc})` : AI_LABEL[a] || a))
+    .join(', ');
+}
+
+// 투표를 1개 이상 저장한 인원 = 완료자
+function completedMembers() {
+  const done = new Set();
+  for (const voters of Object.values(state.votesByDate)) {
+    for (const v of voters) done.add(v);
+  }
+  return done;
+}
+
+const el = {
+  tabs: document.getElementById('tabs'),
+  members: document.getElementById('members'),
+  memberPanel: document.getElementById('member-panel'),
+  memberExtra: document.getElementById('member-extra'),
+  memberExtraLabel: document.getElementById('member-extra-label'),
+  infoEtc: document.getElementById('info-etc'),
+  adminInfoPanel: document.getElementById('admin-info-panel'),
+  adminInfoTeam: document.getElementById('admin-info-team'),
+  refreshInfoBtn: document.getElementById('refresh-info-btn'),
+  memberInfoTable: document.getElementById('member-info-table'),
+  calendar: document.getElementById('calendar'),
+  confirmBtn: document.getElementById('confirm-btn'),
+  saveStatus: document.getElementById('save-status'),
+  pickerInfo: document.getElementById('picker-info'),
+  voteActions: document.getElementById('vote-actions'),
+  confirmBanner: document.getElementById('confirm-banner'),
+  adminBtn: document.getElementById('admin-btn'),
+  adminBar: document.getElementById('admin-bar'),
+  adminInfo: document.getElementById('admin-info'),
+  setConfirmBtn: document.getElementById('set-confirm-btn'),
+  clearConfirmBtn: document.getElementById('clear-confirm-btn'),
+  clearDataBtn: document.getElementById('clear-data-btn'),
+  loginModal: document.getElementById('login-modal'),
+  loginId: document.getElementById('login-id'),
+  loginPw: document.getElementById('login-pw'),
+  loginErr: document.getElementById('login-err'),
+  loginSubmit: document.getElementById('login-submit'),
+  loginCancel: document.getElementById('login-cancel')
+};
+
+const pad = (n) => String(n).padStart(2, '0');
+const dateStr = (day) => `${YEAR}-${pad(MONTH)}-${pad(day)}`;
+const dayOf = (ds) => Number(ds.slice(-2));
+const dowKor = (ds) => DOW[new Date(YEAR, MONTH - 1, dayOf(ds)).getDay()];
+
+// 오늘 날짜 (표시 중인 연/월에 속할 때만 달력에 표시)
+const _today = new Date();
+const TODAY =
+  _today.getFullYear() === YEAR && _today.getMonth() === MONTH - 1
+    ? dateStr(_today.getDate())
+    : null;
+
+async function init() {
+  const res = await fetch('/api/teams');
+  const data = await res.json();
+  state.teams = data.teams || [];
+  state.seminarTime = data.seminarTime || '15:00';
+  renderTabs();
+  applyAdminUI();
+  if (state.teams.length) selectTeam(state.teams[0].id);
+}
+
+function renderTabs() {
+  el.tabs.innerHTML = '';
+  for (const team of state.teams) {
+    const b = document.createElement('button');
+    b.className = 'tab' + (team.id === state.currentTeam ? ' active' : '');
+    b.textContent = team.name;
+    b.onclick = () => selectTeam(team.id);
+    el.tabs.appendChild(b);
+  }
+}
+
+async function selectTeam(teamId) {
+  state.currentTeam = teamId;
+  state.member = null;
+  state.selected = new Set();
+  state.completedOpen = false;
+  state.adminPick = null;
+  el.memberExtra.hidden = true;
+  renderTabs();
+  setSaveStatus('');
+  await loadVotes();      // 완료자 판별을 위해 먼저 투표 데이터 로드
+  renderMembers();
+  updatePickerInfo();
+  renderCalendar();
+  updateConfirmBtn();
+  renderConfirmBanner();
+  updateAdminInfo();
+  if (isAdmin()) loadMemberInfoTable();
+}
+
+function currentTeam() {
+  return state.teams.find((t) => t.id === state.currentTeam);
+}
+
+function memberButton(m, isDone) {
+  const b = document.createElement('button');
+  b.className =
+    'member' + (m.name === state.member ? ' selected' : '') + (isDone ? ' done' : '');
+  const badge = isDone ? ' <span class="badge">완료</span>' : '';
+  b.innerHTML = `<div class="m-name">${m.name}${badge}</div><div class="m-dept">${m.dept}</div>`;
+  b.onclick = () => selectMember(m.name);
+  return b;
+}
+
+function renderMembers() {
+  el.members.innerHTML = '';
+  const done = completedMembers();
+  const members = currentTeam().members;
+  const active = members.filter((m) => !done.has(m.name));
+  const finished = members.filter((m) => done.has(m.name));
+
+  // 1) 아직 투표하지 않은 인원 (본인 선택 대상)
+  const grid = document.createElement('div');
+  grid.className = 'members-grid';
+  if (active.length === 0) {
+    const note = document.createElement('p');
+    note.className = 'empty-note';
+    note.textContent = '모든 인원이 투표를 완료했습니다 🎉';
+    grid.appendChild(note);
+  }
+  for (const m of active) grid.appendChild(memberButton(m, false));
+  el.members.appendChild(grid);
+
+  // 2) 투표 완료 인원 — 기본 접힘, 클릭 시 펼쳐서 다시 선택 가능
+  if (finished.length) {
+    const wrap = document.createElement('div');
+    wrap.className = 'completed' + (state.completedOpen ? ' open' : '');
+
+    const head = document.createElement('button');
+    head.className = 'completed-head';
+    head.innerHTML = `<span class="chev">▶</span> 투표 완료 (${finished.length})`;
+    head.onclick = () => {
+      state.completedOpen = !state.completedOpen;
+      renderMembers();
+    };
+    wrap.appendChild(head);
+
+    const body = document.createElement('div');
+    body.className = 'completed-body';
+    for (const m of finished) body.appendChild(memberButton(m, true));
+    wrap.appendChild(body);
+
+    el.members.appendChild(wrap);
+  }
+}
+
+function selectMember(name) {
+  state.member = name;
+  // 기존에 투표했던 날짜를 본인 선택으로 불러오기
+  state.selected = new Set();
+  for (const [date, voters] of Object.entries(state.votesByDate)) {
+    if (voters.includes(name)) state.selected.add(date);
+  }
+  renderMembers();
+  updatePickerInfo();
+  renderCalendar();
+  updateConfirmBtn();
+  setSaveStatus('');
+  // 추가정보 입력 폼 노출 + 기존 값 프리필
+  el.memberExtra.hidden = false;
+  el.memberExtraLabel.textContent = `${name} 님`;
+  loadMemberExtra(name);
+}
+
+async function loadVotes() {
+  const res = await fetch(`/api/votes?team=${encodeURIComponent(state.currentTeam)}`);
+  const data = await res.json();
+  state.votesByDate = data.votes || {};
+  state.confirmed = Array.isArray(data.confirmed) ? data.confirmed : [];
+  if (data.seminarTime) state.seminarTime = data.seminarTime;
+}
+
+function renderCalendar() {
+  el.calendar.innerHTML = '';
+  DOW.forEach((d, i) => {
+    const h = document.createElement('div');
+    h.className = 'dow' + (i === 0 ? ' sun' : i === 6 ? ' sat' : '');
+    h.textContent = d;
+    el.calendar.appendChild(h);
+  });
+
+  const firstDow = new Date(YEAR, MONTH - 1, 1).getDay();
+  const daysInMonth = new Date(YEAR, MONTH, 0).getDate();
+
+  // 표시되는 카운트(본인 선택 미리보기 포함) 기준 최다 투표 수 계산
+  const dayCount = (ds) => {
+    const v = state.votesByDate[ds] || [];
+    return v.filter((x) => x !== state.member).length + (state.selected.has(ds) ? 1 : 0);
+  };
+  let maxCount = 0;
+  for (let day = 1; day <= daysInMonth; day++) {
+    maxCount = Math.max(maxCount, dayCount(dateStr(day)));
+  }
+
+  for (let i = 0; i < firstDow; i++) {
+    const e = document.createElement('div');
+    e.className = 'day empty';
+    el.calendar.appendChild(e);
+  }
+
+  for (let day = 1; day <= daysInMonth; day++) {
+    const ds = dateStr(day);
+    const dow = new Date(YEAR, MONTH - 1, day).getDay();
+    const voters = state.votesByDate[ds] || [];
+    const othersCount = voters.filter((v) => v !== state.member).length;
+    const mine = state.selected.has(ds);
+
+    const isConfirmed = state.confirmed.includes(ds);
+    const isAdminPick = isAdmin() && state.adminPick === ds;
+    const isToday = TODAY === ds;
+
+    const cell = document.createElement('div');
+    cell.className = 'day' + (dow === 0 ? ' sun' : dow === 6 ? ' sat' : '');
+    if (othersCount > 0) cell.classList.add('has-others');
+    if (mine) cell.classList.add('mine');
+    if (isAdminPick) cell.classList.add('admin-pick');
+    if (isToday) cell.classList.add('today');
+    if (isConfirmed) cell.classList.add('confirmed'); // 가장 강조되는 색상
+    cell.innerHTML = `<span>${day}</span>`;
+
+    if (isToday) {
+      const t = document.createElement('span');
+      t.className = 'today-tag';
+      t.textContent = '오늘';
+      cell.appendChild(t);
+    }
+
+    if (isConfirmed) {
+      const tag = document.createElement('span');
+      tag.className = 'confirm-label';
+      tag.innerHTML = `일정확정<br>${state.seminarTime}`;
+      cell.appendChild(tag);
+    }
+
+    const totalCount = othersCount + (mine ? 1 : 0);
+    if (totalCount > 0 && !isConfirmed) {
+      const c = document.createElement('span');
+      const isTop = totalCount === maxCount; // 최다 투표 날짜 강조
+      c.className = 'count' + (isTop ? ' top' : '');
+      c.textContent = totalCount;
+      cell.appendChild(c);
+    }
+
+    cell.title = voters.length ? `투표: ${voters.join(', ')}` : '';
+    cell.onclick = () => (isAdmin() ? adminPickDate(ds) : toggleDate(ds));
+    el.calendar.appendChild(cell);
+  }
+}
+
+function toggleDate(ds) {
+  if (!state.member) {
+    updatePickerInfo(true);
+    return;
+  }
+  if (state.selected.has(ds)) state.selected.delete(ds);
+  else state.selected.add(ds);
+  renderCalendar();
+  updateConfirmBtn();
+  setSaveStatus('');
+}
+
+function updatePickerInfo(warn) {
+  if (!state.member) {
+    el.pickerInfo.textContent = warn ? '⚠ 먼저 본인을 선택하세요.' : '본인을 먼저 선택하세요.';
+    el.pickerInfo.style.color = warn ? '#e2574c' : '';
+  } else {
+    el.pickerInfo.textContent = `${state.member} 님 — 날짜를 눌러 선택/해제하세요.`;
+    el.pickerInfo.style.color = '';
+  }
+}
+
+function updateConfirmBtn() {
+  el.confirmBtn.disabled = !state.member;
+}
+
+function setSaveStatus(text, ok) {
+  el.saveStatus.textContent = text;
+  el.saveStatus.className = 'save-status' + (ok ? ' ok' : '');
+}
+
+el.confirmBtn.onclick = async () => {
+  if (!state.member) return;
+  // 추가정보 필수 입력 검증
+  const infoErr = infoValidationError();
+  if (infoErr) {
+    alert(infoErr);
+    el.memberExtra.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    return;
+  }
+  const dates = [...state.selected];
+  el.confirmBtn.disabled = true;
+  setSaveStatus('저장 중...');
+  try {
+    await saveMemberInfo(); // 추가정보 먼저 저장
+    const res = await fetch('/api/votes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ team: state.currentTeam, member: state.member, dates })
+    });
+    if (!res.ok) throw new Error('save failed');
+    await loadVotes();
+    // 투표 완료 → 선택 해제 (이름을 다시 클릭하기 전까지 추가정보 숨김)
+    const savedName = state.member;
+    state.member = null;
+    state.selected = new Set();
+    el.memberExtra.hidden = true;
+    renderMembers();
+    updatePickerInfo();
+    renderCalendar();
+    updateConfirmBtn();
+    setSaveStatus(`✓ ${savedName} 님 투표 저장 완료 (${dates.length}일)`, true);
+  } catch (err) {
+    console.error(err);
+    setSaveStatus('✗ 저장 실패. 다시 시도하세요.');
+  } finally {
+    el.confirmBtn.disabled = false;
+  }
+};
+
+/* ---------------- 확정 일정 표시 ---------------- */
+
+function renderConfirmBanner() {
+  if (state.confirmed.length) {
+    const list = state.confirmed
+      .map((ds) => `6월 ${dayOf(ds)}일 (${dowKor(ds)}) ${state.seminarTime}`)
+      .join(' · ');
+    el.confirmBanner.hidden = false;
+    el.confirmBanner.innerHTML = `✅ 확정 일정: <strong>${list}</strong>`;
+  } else {
+    el.confirmBanner.hidden = true;
+    el.confirmBanner.textContent = '';
+  }
+}
+
+/* ---------------- 관리자 모드 ---------------- */
+
+function applyAdminUI() {
+  const admin = isAdmin();
+  el.adminBtn.textContent = admin ? '로그아웃' : '관리자 로그인';
+  el.adminBtn.classList.toggle('on', admin);
+  el.memberPanel.hidden = admin;     // 관리자는 본인 투표 불필요
+  el.voteActions.hidden = admin;
+  el.adminBar.hidden = !admin;
+  el.adminInfoPanel.hidden = !admin;
+  if (admin) loadMemberInfoTable();
+}
+
+/* ---------------- 추가정보 (구독 AI) ---------------- */
+
+function syncInfoModalState() {
+  const checks = [...document.querySelectorAll('.ai-chk')];
+  const none = checks.find((c) => c.value === 'NONE');
+  const others = checks.filter((c) => c.value !== 'NONE');
+  const anyOther = others.some((c) => c.checked);
+  // '없음'과 나머지는 상호 배타
+  if (none.checked) {
+    others.forEach((c) => { c.checked = false; c.disabled = true; });
+  } else {
+    others.forEach((c) => { c.disabled = false; });
+  }
+  none.disabled = anyOther;
+  const other = others.find((c) => c.value === 'OTHER');
+  el.infoEtc.disabled = !other.checked;
+  if (!other.checked) el.infoEtc.value = '';
+}
+
+// 본인 선택 시 기존 추가정보를 인라인 폼에 프리필
+async function loadMemberExtra(name) {
+  // 우선 비우기
+  document.querySelectorAll('.ai-chk').forEach((c) => { c.checked = false; });
+  el.infoEtc.value = '';
+  syncInfoModalState();
+  try {
+    const res = await fetch(
+      `/api/member-info?team=${encodeURIComponent(state.currentTeam)}&member=${encodeURIComponent(name)}`
+    );
+    if (!res.ok) return;
+    const data = await res.json();
+    if (state.member !== name) return; // 그 사이 다른 사람 선택 시 무시
+    document.querySelectorAll('.ai-chk').forEach((c) => {
+      c.checked = data.accounts.includes(c.value);
+    });
+    el.infoEtc.value = data.etc || '';
+    syncInfoModalState();
+  } catch (_) { /* 무시 */ }
+}
+
+// 현재 인라인 폼의 선택값
+function gatherInfo() {
+  const accounts = [...document.querySelectorAll('.ai-chk')]
+    .filter((c) => c.checked)
+    .map((c) => c.value);
+  return { accounts, etc: el.infoEtc.value.trim() };
+}
+
+// 추가정보 유효성: 최소 1개 선택, OTHER 면 텍스트 필수
+function infoValidationError() {
+  const { accounts, etc } = gatherInfo();
+  if (!accounts.length) return '추가정보(구독 중인 AI 계정)를 먼저 선택해주세요.';
+  if (accounts.includes('OTHER') && !etc) return '기타를 선택한 경우 내용을 입력해주세요.';
+  return null;
+}
+
+async function saveMemberInfo() {
+  const { accounts, etc } = gatherInfo();
+  const res = await fetch('/api/member-info', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ team: state.currentTeam, member: state.member, accounts, etc })
+  });
+  if (!res.ok) throw new Error('info save failed');
+}
+
+/* ---------------- 관리자: 구독 AI 현황 ---------------- */
+
+async function loadMemberInfoTable() {
+  if (!isAdmin()) return;
+  el.adminInfoTeam.textContent = `(${currentTeam().name})`;
+  try {
+    const res = await fetch(`/api/admin/member-info?team=${encodeURIComponent(state.currentTeam)}`, {
+      headers: { Authorization: `Bearer ${state.adminToken}` }
+    });
+    if (res.status === 401) return handleAuthExpired();
+    if (!res.ok) throw new Error('load failed');
+    const data = await res.json();
+    renderMemberInfoTable(data.members || []);
+  } catch (err) {
+    console.error(err);
+    el.memberInfoTable.innerHTML = '<p class="empty-note">현황을 불러오지 못했습니다.</p>';
+  }
+}
+
+function renderMemberInfoTable(members) {
+  const done = members.filter((m) => m.accounts.length);
+  const rows = members
+    .map((m) => {
+      const filled = m.accounts.length;
+      const val = filled ? aiText(m.accounts, m.etc) : '<span class="ti-none">미입력</span>';
+      return `<tr class="${filled ? '' : 'ti-empty'}">
+        <td>${m.name}</td><td class="ti-dept">${m.dept}</td><td>${val}</td>
+      </tr>`;
+    })
+    .join('');
+  el.memberInfoTable.innerHTML = `
+    <p class="ti-summary">입력 완료 ${done.length} / 전체 ${members.length}명</p>
+    <table class="ti-table">
+      <thead><tr><th>이름</th><th>부서</th><th>구독 AI</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+
+function adminPickDate(ds) {
+  state.adminPick = state.adminPick === ds ? null : ds;
+  renderCalendar();
+  updateAdminInfo();
+}
+
+function updateAdminInfo() {
+  if (!isAdmin()) return;
+  const n = state.confirmed.length;
+  const list = n ? state.confirmed.map((d) => `6월 ${dayOf(d)}일`).join(', ') : '없음';
+  el.adminInfo.textContent = `확정 ${n}/${MAX_CONFIRMED} · ${list}`;
+
+  const pick = state.adminPick;
+  const btn = el.setConfirmBtn;
+  if (!pick) {
+    btn.disabled = true;
+    btn.textContent = '날짜를 선택하세요';
+  } else if (state.confirmed.includes(pick)) {
+    btn.disabled = false;
+    btn.textContent = `6월 ${dayOf(pick)}일 확정 해제`;
+  } else if (n >= MAX_CONFIRMED) {
+    btn.disabled = true;
+    btn.textContent = `확정은 최대 ${MAX_CONFIRMED}개까지`;
+  } else {
+    btn.disabled = false;
+    btn.textContent = `6월 ${dayOf(pick)}일 확정 (${state.seminarTime})`;
+  }
+}
+
+function openLogin() {
+  el.loginErr.textContent = '';
+  el.loginId.value = '';
+  el.loginPw.value = '';
+  el.loginModal.hidden = false;
+  el.loginId.focus();
+}
+function closeLogin() {
+  el.loginModal.hidden = true;
+}
+
+async function doLogin() {
+  const username = el.loginId.value.trim();
+  const password = el.loginPw.value;
+  el.loginErr.textContent = '';
+  try {
+    const res = await fetch('/api/admin/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password })
+    });
+    if (!res.ok) {
+      el.loginErr.textContent = '아이디 또는 비밀번호가 올바르지 않습니다.';
+      return;
+    }
+    const data = await res.json();
+    state.adminToken = data.token;
+    localStorage.setItem('adminToken', data.token);
+    closeLogin();
+    applyAdminUI();
+    state.adminPick = null;
+    renderCalendar();
+    updateAdminInfo();
+  } catch (err) {
+    console.error(err);
+    el.loginErr.textContent = '로그인 중 오류가 발생했습니다.';
+  }
+}
+
+function logout() {
+  state.adminToken = null;
+  state.adminPick = null;
+  localStorage.removeItem('adminToken');
+  applyAdminUI();
+  renderCalendar();
+}
+
+function handleAuthExpired() {
+  alert('세션이 만료되었습니다. 다시 로그인해 주세요.');
+  logout();
+  openLogin();
+}
+
+async function postConfirm(body) {
+  const res = await fetch('/api/confirm', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${state.adminToken}`
+    },
+    body: JSON.stringify({ team: state.currentTeam, ...body })
+  });
+  if (res.status === 401) {
+    handleAuthExpired();
+    return false;
+  }
+  if (res.status === 400) {
+    const data = await res.json().catch(() => ({}));
+    if (data.error === 'max confirmed') {
+      alert(`일정 확정은 최대 ${data.max}개까지 가능합니다.`);
+      return false;
+    }
+    throw new Error('confirm failed');
+  }
+  if (!res.ok) throw new Error('confirm failed');
+  await loadVotes();
+  renderCalendar();
+  renderConfirmBanner();
+  updateAdminInfo();
+  return true;
+}
+
+el.adminBtn.onclick = () => (isAdmin() ? logout() : openLogin());
+el.loginCancel.onclick = closeLogin;
+el.loginSubmit.onclick = doLogin;
+el.loginPw.addEventListener('keydown', (e) => { if (e.key === 'Enter') doLogin(); });
+el.loginModal.addEventListener('click', (e) => { if (e.target === el.loginModal) closeLogin(); });
+
+el.setConfirmBtn.onclick = async () => {
+  if (!state.adminPick) return;
+  el.setConfirmBtn.disabled = true;
+  try {
+    await postConfirm({ date: state.adminPick });
+  } catch (err) {
+    console.error(err);
+    alert('일정 확정에 실패했습니다.');
+  } finally {
+    updateAdminInfo();
+  }
+};
+
+el.clearConfirmBtn.onclick = async () => {
+  if (!state.confirmed.length) {
+    alert('확정된 일정이 없습니다.');
+    return;
+  }
+  if (!confirm('이 팀의 확정 일정을 모두 취소할까요?')) return;
+  try {
+    await postConfirm({ clearAll: true });
+  } catch (err) {
+    console.error(err);
+    alert('확정 취소에 실패했습니다.');
+  }
+};
+
+el.clearDataBtn.onclick = async () => {
+  const team = currentTeam();
+  if (
+    !confirm(
+      `[${team.name}]의 모든 투표·확정 데이터를 삭제합니다.\n이 작업은 되돌릴 수 없습니다. 계속할까요?`
+    )
+  ) {
+    return;
+  }
+  el.clearDataBtn.disabled = true;
+  try {
+    const res = await fetch('/api/admin/clear', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${state.adminToken}`
+      },
+      body: JSON.stringify({ team: state.currentTeam })
+    });
+    if (res.status === 401) return handleAuthExpired();
+    if (!res.ok) throw new Error('clear failed');
+    state.adminPick = null;
+    await loadVotes();
+    renderMembers();
+    renderCalendar();
+    renderConfirmBanner();
+    updateAdminInfo();
+    alert(`${team.name} 데이터가 초기화되었습니다.`);
+  } catch (err) {
+    console.error(err);
+    alert('데이터 초기화에 실패했습니다.');
+  } finally {
+    el.clearDataBtn.disabled = false;
+  }
+};
+
+// 추가정보 체크박스 상호작용 (인라인)
+document.querySelectorAll('.ai-chk').forEach((c) => c.addEventListener('change', syncInfoModalState));
+
+// 관리자 현황 새로고침
+el.refreshInfoBtn.onclick = loadMemberInfoTable;
+
+init().catch((err) => {
+  console.error(err);
+  document.body.innerHTML = '<p style="padding:40px;text-align:center">초기화 실패. 서버를 확인하세요.</p>';
+});
