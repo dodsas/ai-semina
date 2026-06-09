@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>실습 준비 - AI CLI 설치 (Claude / Gemini)</title>
+  <style>
+    :root {
+      --bg: #f6f8fb;
+      --card: #ffffff;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --primary: #2563eb;
+      --primary-soft: #e8f0ff;
+      --border: #e5e7eb;
+      --code-bg: #111827;
+      --code-text: #f9fafb;
+      --warning-bg: #fff7ed;
+      --warning-border: #fdba74;
+      --claude: #d97757;
+      --claude-soft: #fbeee7;
+      --gemini: #4285f4;
+      --gemini-soft: #e8f0fe;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans KR", Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.65;
+    }
+
+    .container {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 48px 24px 72px;
+    }
+
+    .hero {
+      background: linear-gradient(135deg, #6d28d9, #2563eb);
+      color: #ffffff;
+      padding: 42px 40px;
+      border-radius: 24px;
+      box-shadow: 0 16px 40px rgba(79, 70, 229, 0.25);
+      margin-bottom: 32px;
+    }
+
+    .hero .eyebrow {
+      font-size: 15px;
+      font-weight: 700;
+      opacity: 0.9;
+      margin-bottom: 10px;
+    }
+
+    .hero h1 {
+      font-size: 38px;
+      line-height: 1.2;
+      margin: 0 0 16px;
+      letter-spacing: -0.04em;
+    }
+
+    .hero p {
+      font-size: 18px;
+      margin: 0;
+      opacity: 0.92;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 32px;
+      margin-bottom: 24px;
+      box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+    }
+
+    .section-title {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+
+    .badge {
+      flex: 0 0 auto;
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      background: var(--primary-soft);
+      color: var(--primary);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+    }
+
+    h2 {
+      font-size: 25px;
+      margin: 0;
+      letter-spacing: -0.03em;
+    }
+
+    h3 {
+      font-size: 19px;
+      margin: 28px 0 10px;
+      letter-spacing: -0.02em;
+    }
+
+    p {
+      margin: 8px 0 14px;
+    }
+
+    ol, ul {
+      padding-left: 22px;
+      margin-top: 10px;
+      margin-bottom: 18px;
+    }
+
+    li {
+      margin: 6px 0;
+    }
+
+    a {
+      color: var(--primary);
+      font-weight: 700;
+      text-decoration: none;
+    }
+
+    a:hover {
+      text-decoration: underline;
+    }
+
+    .link-box {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      background: var(--primary-soft);
+      border: 1px solid #bfdbfe;
+      border-radius: 14px;
+      padding: 16px 18px;
+      margin: 16px 0 22px;
+    }
+
+    .link-box strong {
+      display: block;
+      margin-bottom: 2px;
+    }
+
+    .link-box span {
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .button {
+      display: inline-block;
+      background: var(--primary);
+      color: #ffffff;
+      padding: 10px 14px;
+      border-radius: 10px;
+      font-size: 14px;
+      white-space: nowrap;
+    }
+
+    .button:hover {
+      text-decoration: none;
+      background: #1d4ed8;
+    }
+
+    .command-group {
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      overflow: hidden;
+      margin: 16px 0;
+    }
+
+    .command-item {
+      padding: 20px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .command-item:last-child {
+      border-bottom: none;
+    }
+
+    .command-label {
+      font-weight: 800;
+      margin-bottom: 8px;
+      color: #111827;
+    }
+
+    pre {
+      margin: 10px 0;
+      padding: 16px 18px;
+      background: var(--code-bg);
+      color: var(--code-text);
+      border-radius: 12px;
+      overflow-x: auto;
+      font-size: 15px;
+      line-height: 1.5;
+    }
+
+    code {
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    }
+
+    .note {
+      background: var(--warning-bg);
+      border: 1px solid var(--warning-border);
+      border-radius: 14px;
+      padding: 16px 18px;
+      margin-top: 16px;
+    }
+
+    .note strong {
+      display: block;
+      margin-bottom: 6px;
+    }
+
+    .footer {
+      color: var(--muted);
+      text-align: center;
+      font-size: 14px;
+      margin-top: 32px;
+    }
+
+    .back-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 20px;
+      padding: 9px 16px;
+      background: #ffffff;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .back-link:hover {
+      text-decoration: none;
+      border-color: var(--primary);
+      color: var(--primary);
+    }
+
+    /* ---- AI 선택 버튼 ---- */
+    .selector {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+      margin-top: 8px;
+    }
+
+    .select-btn {
+      cursor: pointer;
+      text-align: left;
+      background: #f9fafb;
+      border: 2px solid var(--border);
+      border-radius: 16px;
+      padding: 20px 22px;
+      font-family: inherit;
+      transition: all 0.15s ease;
+    }
+
+    .select-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+    }
+
+    .select-btn .name {
+      font-size: 19px;
+      font-weight: 800;
+      color: #111827;
+      margin-bottom: 4px;
+    }
+
+    .select-btn .desc {
+      font-size: 14px;
+      color: var(--muted);
+    }
+
+    .select-btn[data-target="claude"].active {
+      border-color: var(--claude);
+      background: var(--claude-soft);
+    }
+
+    .select-btn[data-target="gemini"].active {
+      border-color: var(--gemini);
+      background: var(--gemini-soft);
+    }
+
+    .select-hint {
+      color: var(--muted);
+      text-align: center;
+      padding: 28px 0 8px;
+      font-weight: 600;
+    }
+
+    /* AI별 강조색 */
+    #guide-claude .badge { background: var(--claude-soft); color: var(--claude); }
+    #guide-claude .section-title h2 { color: var(--claude); }
+    #guide-gemini .badge { background: var(--gemini-soft); color: var(--gemini); }
+    #guide-gemini .section-title h2 { color: var(--gemini); }
+
+    [hidden] { display: none !important; }
+
+    @media (max-width: 720px) {
+      .container { padding: 28px 16px 48px; }
+      .hero { padding: 30px 24px; }
+      .hero h1 { font-size: 30px; }
+      .card { padding: 24px; }
+      .link-box { flex-direction: column; align-items: flex-start; }
+      .selector { grid-template-columns: 1fr; }
+    }
+
+    @media print {
+      body { background: #ffffff; }
+      .container { max-width: none; padding: 0; }
+      .hero, .card { box-shadow: none; }
+      .button { color: #ffffff !important; }
+    }
+  </style>
+</head>
+<body>
+  <main class="container">
+    <a href="/" class="back-link">← 메인으로 돌아가기</a>
+    <section class="hero">
+      <div class="eyebrow">실습 준비</div>
+      <h1>AI CLI 설치 가이드</h1>
+      <p>
+        Visual Studio Code 터미널에서 Claude CLI 또는 Gemini CLI를 설치하는 방법을 정리한 자료입니다.
+        사용할 AI를 선택하면 해당 설치 과정만 보여드립니다.
+      </p>
+    </section>
+
+    <section class="card">
+      <div class="section-title">
+        <span class="badge">1</span>
+        <h2>공통 준비 — VS Code & Node.js</h2>
+      </div>
+
+      <p>
+        두 CLI 모두 <strong>Node.js(npm)</strong> 환경에서 설치합니다.
+        먼저 Visual Studio Code와 Node.js가 준비되어 있어야 합니다.
+      </p>
+
+      <div class="link-box">
+        <div>
+          <strong>Node.js 다운로드 (LTS)</strong>
+          <span>Claude/Gemini CLI 설치에 필요한 npm 이 함께 설치됩니다. (Node.js 20 이상 권장)</span>
+        </div>
+        <a class="button" href="https://nodejs.org/ko/download" target="_blank" rel="noopener noreferrer">다운로드</a>
+      </div>
+
+      <h3>① VS Code에서 터미널 열기</h3>
+      <p>
+        Visual Studio Code 상단 메뉴에서 <strong>View(보기) &gt; Terminal(터미널)</strong> 을 선택합니다.
+        (단축키: <code>Ctrl</code> + <code>`</code> — 백틱)
+      </p>
+      <p>화면 하단에 터미널 창이 열리면, 앞으로의 명령어는 모두 이 터미널에 입력합니다.</p>
+
+      <h3>② Node.js 설치 확인</h3>
+      <p>터미널에 아래 명령어를 입력해 정상 설치 여부를 확인합니다.</p>
+      <pre><code>node --version
+npm --version</code></pre>
+      <p>버전 숫자가 출력되면 준비 완료입니다. (예: <code>v20.x.x</code>)</p>
+
+      <div class="note">
+        <strong>버전이 안 보이거나 오류가 난다면</strong>
+        <p>Node.js 설치 후 VS Code를 완전히 종료했다가 다시 실행한 뒤 터미널을 새로 열어주세요. (환경변수 반영)</p>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="section-title">
+        <span class="badge">2</span>
+        <h2>사용할 AI 선택</h2>
+      </div>
+
+      <p>설치하고 진행할 AI를 선택하세요. 선택한 도구의 설치 과정만 아래에 표시됩니다.</p>
+
+      <div class="selector">
+        <button class="select-btn" data-target="claude" type="button">
+          <div class="name">🟠 Claude CLI</div>
+          <div class="desc">Anthropic 의 Claude Code CLI</div>
+        </button>
+        <button class="select-btn" data-target="gemini" type="button">
+          <div class="name">🔵 Gemini CLI</div>
+          <div class="desc">Google 의 Gemini CLI</div>
+        </button>
+      </div>
+
+      <p id="select-hint" class="select-hint">⬆ 위에서 AI를 선택하면 설치 가이드가 나타납니다.</p>
+    </section>
+
+    <!-- Claude CLI -->
+    <section class="card" id="guide-claude" hidden>
+      <div class="section-title">
+        <span class="badge">3</span>
+        <h2>Claude CLI 설치</h2>
+      </div>
+
+      <p>
+        Claude Code는 터미널에서 Claude 와 대화하며 코드를 작성·수정할 수 있는 Anthropic 공식 CLI 입니다.
+        아래 명령어는 <strong>VS Code 터미널(View &gt; Terminal)</strong> 에 입력합니다.
+      </p>
+
+      <div class="command-group">
+        <div class="command-item">
+          <div class="command-label">① 설치</div>
+          <pre><code>npm install -g @anthropic-ai/claude-code</code></pre>
+          <p>npm 으로 Claude Code CLI 를 전역(-g) 설치합니다.</p>
+        </div>
+
+        <div class="command-item">
+          <div class="command-label">② 설치 확인</div>
+          <pre><code>claude --version</code></pre>
+          <p>버전 숫자가 출력되면 설치가 완료된 것입니다.</p>
+        </div>
+
+        <div class="command-item">
+          <div class="command-label">③ 실행 & 로그인</div>
+          <pre><code>claude</code></pre>
+          <p>
+            처음 실행하면 로그인 안내가 나타납니다. 화면 안내에 따라
+            <strong>Claude 계정으로 로그인</strong>(브라우저 자동 열림)하면 됩니다.
+            로그인 후 다시 <code>claude</code> 를 실행해 사용합니다.
+          </p>
+        </div>
+      </div>
+
+      <div class="note">
+        <strong>참고</strong>
+        <p>
+          작업할 프로젝트 폴더에서 실행하는 것이 좋습니다. VS Code에서 프로젝트 폴더를 연 뒤
+          터미널에서 <code>claude</code> 를 실행하면 해당 폴더 기준으로 동작합니다.
+        </p>
+      </div>
+    </section>
+
+    <!-- Gemini CLI -->
+    <section class="card" id="guide-gemini" hidden>
+      <div class="section-title">
+        <span class="badge">3</span>
+        <h2>Gemini CLI 설치</h2>
+      </div>
+
+      <p>
+        Gemini CLI는 터미널에서 Google Gemini 모델을 사용할 수 있는 공식 오픈소스 CLI 입니다.
+        아래 명령어는 <strong>VS Code 터미널(View &gt; Terminal)</strong> 에 입력합니다.
+      </p>
+
+      <div class="command-group">
+        <div class="command-item">
+          <div class="command-label">① 설치</div>
+          <pre><code>npm install -g @google/gemini-cli</code></pre>
+          <p>npm 으로 Gemini CLI 를 전역(-g) 설치합니다.</p>
+        </div>
+
+        <div class="command-item">
+          <div class="command-label">② 설치 확인</div>
+          <pre><code>gemini --version</code></pre>
+          <p>버전 숫자가 출력되면 설치가 완료된 것입니다.</p>
+        </div>
+
+        <div class="command-item">
+          <div class="command-label">③ 실행 & 로그인</div>
+          <pre><code>gemini</code></pre>
+          <p>
+            처음 실행하면 인증 방법을 묻습니다. <strong>Google 계정으로 로그인</strong>(Login with Google)을
+            선택하면 브라우저가 열리고, 로그인하면 바로 사용할 수 있습니다.
+          </p>
+        </div>
+      </div>
+
+      <div class="note">
+        <strong>참고</strong>
+        <p>
+          설치 없이 한 번만 실행해보려면 <code>npx https://github.com/google-gemini/gemini-cli</code> 도 가능합니다.
+          작업할 프로젝트 폴더를 VS Code에서 연 뒤 터미널에서 <code>gemini</code> 를 실행하세요.
+        </p>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="section-title">
+        <span class="badge">✓</span>
+        <h2>실습 전 확인</h2>
+      </div>
+
+      <p>실습 시작 전 아래 항목을 확인합니다.</p>
+
+      <ul>
+        <li>Node.js / npm 설치 및 버전 확인 완료</li>
+        <li>VS Code 터미널(View &gt; Terminal) 사용법 확인</li>
+        <li>선택한 AI CLI 설치 및 <code>--version</code> 확인 완료</li>
+        <li>CLI 실행 후 로그인 완료</li>
+      </ul>
+    </section>
+
+    <div class="footer">
+      AI CLI(Claude / Gemini) 실습 준비 자료
+    </div>
+  </main>
+
+  <script>
+    (function () {
+      var buttons = document.querySelectorAll('.select-btn');
+      var hint = document.getElementById('select-hint');
+      var guides = {
+        claude: document.getElementById('guide-claude'),
+        gemini: document.getElementById('guide-gemini')
+      };
+
+      buttons.forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var target = btn.dataset.target;
+          buttons.forEach(function (b) { b.classList.toggle('active', b === btn); });
+          Object.keys(guides).forEach(function (key) {
+            guides[key].hidden = key !== target;
+          });
+          hint.hidden = true;
+          guides[target].scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+      });
+    })();
+  </script>
+</body>
+</html>

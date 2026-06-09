@@ -19,10 +19,13 @@
 
 ```bash
 npm install
-# .env 파일에 TURSO_URL, TURSO_TOKEN 설정 (.env.example 참고)
 npm start          # http://localhost:3000
 npm run dev        # 파일 변경 시 자동 재시작
 ```
+
+> **DB 분리**: 로컬 실행(`NODE_ENV` 미설정)은 **로컬 SQLite 파일 `local.db`** 를 사용합니다.
+> 운영 Turso 데이터에 전혀 영향을 주지 않습니다. (`local.db` 는 `.gitignore` 로 제외)
+> 운영(Render)은 `NODE_ENV=production` 이라 Turso 원격 DB를 사용합니다.
 
 ## 환경변수
 

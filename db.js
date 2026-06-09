@@ -1,18 +1,25 @@
 import { createClient } from '@libsql/client';
 import 'dotenv/config';
 
-const url = process.env.TURSO_URL;
-const authToken = process.env.TURSO_TOKEN;
+// 운영(Render, NODE_ENV=production): Turso 원격 DB
+// 로컬 개발: local.db (순수 로컬 SQLite) — 운영 데이터에 전혀 영향 없음
+const isProd = process.env.NODE_ENV === 'production';
 
-if (!url || !authToken) {
-  console.error('[DB] TURSO_URL / TURSO_TOKEN 환경변수가 설정되지 않았습니다.');
-  console.error('     로컬: .env 파일,  운영(Render): 환경변수에 설정하세요.');
-  process.exit(1);
+let client;
+if (isProd) {
+  const url = process.env.TURSO_URL;
+  const authToken = process.env.TURSO_TOKEN;
+  if (!url || !authToken) {
+    console.error('[DB] 운영 모드: TURSO_URL / TURSO_TOKEN 환경변수가 필요합니다.');
+    process.exit(1);
+  }
+  client = createClient({ url, authToken });
+  console.log('[DB] 운영 모드: Turso 원격 DB 사용');
+} else {
+  client = createClient({ url: 'file:local.db' });
+  console.log('[DB] 로컬 모드: local.db 사용 (운영 DB 영향 없음)');
 }
-
-// 원격 Turso 클라이언트. (임베디드 레플리카는 요청당 동기화 오버헤드로 오히려 느려
-// 사용하지 않음 — 대신 /api/votes 의 조회를 batch 로 묶어 왕복을 최소화)
-export const db = createClient({ url, authToken });
+export const db = client;
 
 // 투표 데이터는 DB 에 영구 저장됩니다.
 export async function initDb() {
@@ -29,12 +36,14 @@ export async function initDb() {
   await db.execute(
     `CREATE INDEX IF NOT EXISTS idx_votes_team ON votes (team)`
   );
-  // 팀별 확정 일정 (관리자가 확정한 날짜, 팀당 최대 3개)
+  // 팀별 확정 일정 (관리자가 확정한 날짜, 팀당 최대 3개, 메모 포함)
   const NEW_CONFIRMED = `
     CREATE TABLE confirmed (
       id         INTEGER PRIMARY KEY AUTOINCREMENT,
       team       TEXT NOT NULL,
       vote_date  TEXT NOT NULL,
+      memo       TEXT NOT NULL DEFAULT '',
+      start_time TEXT NOT NULL DEFAULT '15:00',
       updated_at TEXT NOT NULL DEFAULT (datetime('now')),
       UNIQUE (team, vote_date)
     )
@@ -52,6 +61,15 @@ export async function initDb() {
     );
     await db.execute('DROP TABLE confirmed_old');
     console.log('[DB] confirmed 테이블 마이그레이션 완료 (다중 확정 허용)');
+  }
+  // 누락 컬럼 보강 (점진적 마이그레이션)
+  if (cols.length && cols.includes('id') && !cols.includes('memo')) {
+    await db.execute("ALTER TABLE confirmed ADD COLUMN memo TEXT NOT NULL DEFAULT ''");
+    console.log('[DB] confirmed.memo 컬럼 추가');
+  }
+  if (cols.length && cols.includes('id') && !cols.includes('start_time')) {
+    await db.execute("ALTER TABLE confirmed ADD COLUMN start_time TEXT NOT NULL DEFAULT '15:00'");
+    console.log('[DB] confirmed.start_time 컬럼 추가');
   }
   // 인원 추가정보 (구독 중인 유료 AI 계정)
   await db.execute(`

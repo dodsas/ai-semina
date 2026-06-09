@@ -61,7 +61,7 @@ app.get('/api/votes', async (req, res) => {
     const [result, conf] = await db.batch(
       [
         { sql: 'SELECT member, vote_date FROM votes WHERE team = ? ORDER BY vote_date', args: [team] },
-        { sql: 'SELECT vote_date FROM confirmed WHERE team = ? ORDER BY vote_date', args: [team] }
+        { sql: 'SELECT vote_date, memo, start_time FROM confirmed WHERE team = ? ORDER BY vote_date', args: [team] }
       ],
       'read'
     );
@@ -70,7 +70,11 @@ app.get('/api/votes', async (req, res) => {
     for (const row of result.rows) {
       (byDate[row.vote_date] ??= []).push(row.member);
     }
-    const confirmed = conf.rows.map((r) => r.vote_date);
+    const confirmed = conf.rows.map((r) => ({
+      date: r.vote_date,
+      memo: r.memo || '',
+      time: r.start_time || SEMINAR_TIME
+    }));
     res.json({ team, votes: byDate, confirmed, seminarTime: SEMINAR_TIME });
   } catch (err) {
     console.error('[GET /api/votes]', err);
@@ -80,17 +84,25 @@ app.get('/api/votes', async (req, res) => {
 
 const MAX_CONFIRMED = 3;
 
+const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+
 async function confirmedDates(team) {
   const r = await db.execute({
-    sql: 'SELECT vote_date FROM confirmed WHERE team = ? ORDER BY vote_date',
+    sql: 'SELECT vote_date, memo, start_time FROM confirmed WHERE team = ? ORDER BY vote_date',
     args: [team]
   });
-  return r.rows.map((row) => row.vote_date);
+  return r.rows.map((row) => ({
+    date: row.vote_date,
+    memo: row.memo || '',
+    time: row.start_time || SEMINAR_TIME
+  }));
 }
 
-// 관리자: 일정 확정 토글 (팀당 최대 3개) / clearAll 로 전체 취소
+// 관리자: 일정 확정 토글 (팀당 최대 3개, 메모/시작시간 포함) / clearAll 로 전체 취소
 app.post('/api/confirm', requireAdmin, async (req, res) => {
   const { team, date, clearAll } = req.body || {};
+  const memo = typeof req.body?.memo === 'string' ? req.body.memo.trim().slice(0, 200) : '';
+  const time = TIME_RE.test(req.body?.time) ? req.body.time : SEMINAR_TIME;
   if (!TEAM_IDS.has(team)) {
     return res.status(400).json({ error: 'unknown team' });
   }
@@ -120,8 +132,8 @@ app.post('/api/confirm', requireAdmin, async (req, res) => {
           .json({ error: 'max confirmed', max: MAX_CONFIRMED, confirmed: current });
       }
       await db.execute({
-        sql: 'INSERT INTO confirmed (team, vote_date) VALUES (?, ?)',
-        args: [team, date]
+        sql: 'INSERT INTO confirmed (team, vote_date, memo, start_time) VALUES (?, ?, ?, ?)',
+        args: [team, date, memo, time]
       });
     }
     res.json({ ok: true, confirmed: await confirmedDates(team) });

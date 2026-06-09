@@ -12,6 +12,8 @@ services:
     healthCheckPath: /
     autoDeploy: true
     envVars:
+      - key: NODE_ENV         # 운영 모드 → Turso 사용 (없으면 로컬 SQLite)
+        value: production
       - key: TURSO_URL        # libsql://...turso.io
         sync: false
       - key: TURSO_TOKEN      # Turso 인증 토큰(JWT)

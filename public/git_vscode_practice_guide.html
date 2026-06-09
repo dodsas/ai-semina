@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>실습 준비 - Git & VS Code 설치</title>
+  <style>
+    :root {
+      --bg: #f6f8fb;
+      --card: #ffffff;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --primary: #2563eb;
+      --primary-soft: #e8f0ff;
+      --border: #e5e7eb;
+      --code-bg: #111827;
+      --code-text: #f9fafb;
+      --warning-bg: #fff7ed;
+      --warning-border: #fdba74;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans KR", Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.65;
+    }
+
+    .container {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 48px 24px 72px;
+    }
+
+    .hero {
+      background: linear-gradient(135deg, #2563eb, #1e40af);
+      color: #ffffff;
+      padding: 42px 40px;
+      border-radius: 24px;
+      box-shadow: 0 16px 40px rgba(37, 99, 235, 0.25);
+      margin-bottom: 32px;
+    }
+
+    .hero .eyebrow {
+      font-size: 15px;
+      font-weight: 700;
+      opacity: 0.9;
+      margin-bottom: 10px;
+    }
+
+    .hero h1 {
+      font-size: 38px;
+      line-height: 1.2;
+      margin: 0 0 16px;
+      letter-spacing: -0.04em;
+    }
+
+    .hero p {
+      font-size: 18px;
+      margin: 0;
+      opacity: 0.92;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 32px;
+      margin-bottom: 24px;
+      box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+    }
+
+    .section-title {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+
+    .badge {
+      flex: 0 0 auto;
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      background: var(--primary-soft);
+      color: var(--primary);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+    }
+
+    h2 {
+      font-size: 25px;
+      margin: 0;
+      letter-spacing: -0.03em;
+    }
+
+    h3 {
+      font-size: 19px;
+      margin: 28px 0 10px;
+      letter-spacing: -0.02em;
+    }
+
+    p {
+      margin: 8px 0 14px;
+    }
+
+    ol, ul {
+      padding-left: 22px;
+      margin-top: 10px;
+      margin-bottom: 18px;
+    }
+
+    li {
+      margin: 6px 0;
+    }
+
+    a {
+      color: var(--primary);
+      font-weight: 700;
+      text-decoration: none;
+    }
+
+    a:hover {
+      text-decoration: underline;
+    }
+
+    .link-box {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      background: var(--primary-soft);
+      border: 1px solid #bfdbfe;
+      border-radius: 14px;
+      padding: 16px 18px;
+      margin: 16px 0 22px;
+    }
+
+    .link-box strong {
+      display: block;
+      margin-bottom: 2px;
+    }
+
+    .link-box span {
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .button {
+      display: inline-block;
+      background: var(--primary);
+      color: #ffffff;
+      padding: 10px 14px;
+      border-radius: 10px;
+      font-size: 14px;
+      white-space: nowrap;
+    }
+
+    .button:hover {
+      text-decoration: none;
+      background: #1d4ed8;
+    }
+
+    .command-group {
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      overflow: hidden;
+      margin: 16px 0;
+    }
+
+    .command-item {
+      padding: 20px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .command-item:last-child {
+      border-bottom: none;
+    }
+
+    .command-label {
+      font-weight: 800;
+      margin-bottom: 8px;
+      color: #111827;
+    }
+
+    pre {
+      margin: 10px 0;
+      padding: 16px 18px;
+      background: var(--code-bg);
+      color: var(--code-text);
+      border-radius: 12px;
+      overflow-x: auto;
+      font-size: 15px;
+      line-height: 1.5;
+    }
+
+    code {
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    }
+
+    .note {
+      background: var(--warning-bg);
+      border: 1px solid var(--warning-border);
+      border-radius: 14px;
+      padding: 16px 18px;
+      margin-top: 16px;
+    }
+
+    .note strong {
+      display: block;
+      margin-bottom: 6px;
+    }
+
+    .checklist {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+      margin-top: 18px;
+    }
+
+    .check-item {
+      background: #f9fafb;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 16px;
+      font-weight: 700;
+    }
+
+    .footer {
+      color: var(--muted);
+      text-align: center;
+      font-size: 14px;
+      margin-top: 32px;
+    }
+
+    .back-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 20px;
+      padding: 9px 16px;
+      background: #ffffff;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .back-link:hover {
+      text-decoration: none;
+      border-color: var(--primary);
+      color: var(--primary);
+    }
+
+    @media (max-width: 720px) {
+      .container {
+        padding: 28px 16px 48px;
+      }
+
+      .hero {
+        padding: 30px 24px;
+      }
+
+      .hero h1 {
+        font-size: 30px;
+      }
+
+      .card {
+        padding: 24px;
+      }
+
+      .link-box {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+
+      .checklist {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media print {
+      body {
+        background: #ffffff;
+      }
+
+      .container {
+        max-width: none;
+        padding: 0;
+      }
+
+      .hero, .card {
+        box-shadow: none;
+      }
+
+      .button {
+        color: #ffffff !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="container">
+    <a href="/" class="back-link">← 메인으로 돌아가기</a>
+    <section class="hero">
+      <div class="eyebrow">실습 준비</div>
+      <h1>Git & Visual Studio Code 설치 가이드</h1>
+      <p>
+        실습에 필요한 Git 설치, 기본 명령어, Visual Studio Code 설치 방법을 정리한 자료입니다.
+      </p>
+    </section>
+
+    <section class="card">
+      <div class="section-title">
+        <span class="badge">1</span>
+        <h2>Git 설치</h2>
+      </div>
+
+      <p>
+        Git은 소스코드를 저장하고 변경 이력을 관리하기 위한 도구입니다.
+        실습에서는 Git을 사용해 예제 프로젝트를 다운로드하거나, 작성한 코드를 저장하고 서버에 업로드합니다.
+      </p>
+
+      <div class="link-box">
+        <div>
+          <strong>Git for Windows 다운로드</strong>
+          <span>Windows 환경에서 Git을 설치할 때 사용하는 공식 다운로드 페이지입니다.</span>
+        </div>
+        <a class="button" href="https://git-scm.com/install/windows" target="_blank" rel="noopener noreferrer">다운로드</a>
+      </div>
+
+      <h3>설치 순서</h3>
+      <ol>
+        <li>Git for Windows 다운로드 페이지에 접속합니다.</li>
+        <li>Windows용 설치 파일을 다운로드합니다.</li>
+        <li>다운로드한 설치 파일을 실행합니다.</li>
+        <li>설치 옵션은 대부분 기본값 그대로 진행합니다.</li>
+        <li>설치가 완료되면 <strong>Git Bash</strong> 또는 <strong>명령 프롬프트(cmd)</strong>를 실행합니다.</li>
+        <li>아래 명령어로 설치 여부를 확인합니다.</li>
+      </ol>
+
+      <pre><code>git --version</code></pre>
+
+      <p>정상 설치된 경우 아래와 비슷하게 Git 버전이 출력됩니다.</p>
+
+      <pre><code>git version 2.xx.x</code></pre>
+    </section>
+
+    <section class="card">
+      <div class="section-title">
+        <span class="badge">2</span>
+        <h2>Git 주요 명령어</h2>
+      </div>
+
+      <p>
+        Git은 크게 <strong>업로드</strong>와 <strong>다운로드</strong> 흐름으로 이해하면 됩니다.
+      </p>
+
+      <h3>업로드</h3>
+      <p>작성한 코드를 Git 저장소에 저장하고 서버에 업로드할 때 사용합니다.</p>
+
+      <div class="command-group">
+        <div class="command-item">
+          <div class="command-label">파일 추가</div>
+          <pre><code>git add .</code></pre>
+          <p>현재 폴더의 변경된 파일을 Git에 추가합니다.</p>
+        </div>
+
+        <div class="command-item">
+          <div class="command-label">저장</div>
+          <pre><code>git commit -m "작업 내용 작성"</code></pre>
+          <p>추가된 파일을 하나의 작업 단위로 저장합니다.</p>
+          <pre><code>git commit -m "회원가입 기능 추가"</code></pre>
+        </div>
+
+        <div class="command-item">
+          <div class="command-label">서버에 업로드</div>
+          <pre><code>git push</code></pre>
+          <p>내 PC에 저장한 Git 변경사항을 원격 저장소 서버에 업로드합니다.</p>
+        </div>
+      </div>
+
+      <h3>다운로드</h3>
+      <p>서버에 있는 프로젝트를 내 PC로 다운로드하거나 최신 상태로 갱신할 때 사용합니다.</p>
+
+      <div class="command-group">
+        <div class="command-item">
+          <div class="command-label">프로젝트 다운로드</div>
+          <pre><code>git clone 저장소주소</code></pre>
+          <p>원격 저장소에 있는 프로젝트를 내 PC로 복사합니다.</p>
+          <pre><code>git clone https://github.com/example/project.git</code></pre>
+        </div>
+
+        <div class="command-item">
+          <div class="command-label">최신 내용 가져오기</div>
+          <pre><code>git pull</code></pre>
+          <p>이미 다운로드한 프로젝트에서 서버의 최신 변경사항을 다시 가져옵니다.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="section-title">
+        <span class="badge">3</span>
+        <h2>툴 설치</h2>
+      </div>
+
+      <p>
+        Visual Studio Code는 코드를 작성하기 위한 개발 도구입니다.
+        실습에서는 VS Code를 사용해 프로젝트 파일을 열고 코드를 수정합니다.
+      </p>
+
+      <div class="link-box">
+        <div>
+          <strong>Visual Studio Code 다운로드</strong>
+          <span>Windows, macOS, Linux용 VS Code를 다운로드할 수 있습니다.</span>
+        </div>
+        <a class="button" href="https://code.visualstudio.com/download" target="_blank" rel="noopener noreferrer">다운로드</a>
+      </div>
+
+      <h3>설치 순서</h3>
+      <ol>
+        <li>Visual Studio Code 다운로드 페이지에 접속합니다.</li>
+        <li>Windows 버전을 다운로드합니다.</li>
+        <li>설치 파일을 실행합니다.</li>
+        <li>설치 옵션은 기본값으로 진행해도 됩니다.</li>
+        <li>설치가 완료되면 Visual Studio Code를 실행합니다.</li>
+      </ol>
+    </section>
+
+    <section class="card">
+      <div class="section-title">
+        <span class="badge">✓</span>
+        <h2>실습 전 확인</h2>
+      </div>
+
+      <p>실습 시작 전 아래 항목을 확인합니다.</p>
+
+      <div class="checklist">
+        <div class="check-item">Git 설치 완료</div>
+        <div class="check-item">VS Code 설치 완료</div>
+        <div class="check-item">Git 버전 확인 완료</div>
+        <div class="check-item">프로젝트 폴더 열기 준비 완료</div>
+      </div>
+
+      <h3>Git 설치 확인 명령어</h3>
+      <pre><code>git --version</code></pre>
+    </section>
+
+    <div class="footer">
+      Git & VS Code 실습 준비 자료
+    </div>
+  </main>
+</body>
+</html>

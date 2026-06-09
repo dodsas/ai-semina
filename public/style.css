@@ -288,16 +288,55 @@ main {
 }
 .time-fixed strong { color: #8a4f00; }
 
-/* ---- 관리자 로그인 버튼 ---- */
+/* ---- 가이드 링크 ---- */
+.guide-links {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin: 12px 0 4px;
+}
+.guide-link {
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--primary-d);
+  background: #eef1fb;
+  border: 1px solid #d7def8;
+  border-radius: 999px;
+  padding: 8px 16px;
+  transition: all .12s;
+}
+.guide-link:hover { background: var(--primary); color: #fff; border-color: var(--primary); }
+
+/* ---- 확정 시작시간 입력 ---- */
+.confirm-time-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+  font-size: 14px;
+  font-weight: 700;
+}
+.confirm-time {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 7px 10px;
+  font-size: 14px;
+}
+.confirm-time:focus { outline: none; border-color: var(--confirm); }
+
+/* ---- 관리자 로그인 버튼 (페이지 하단) ---- */
+.admin-footer {
+  text-align: center;
+  padding: 8px 16px 40px;
+}
 .admin-btn {
-  position: absolute;
-  top: 16px;
-  right: 18px;
   border: 1px solid var(--line);
   background: #fff;
   color: var(--muted);
   border-radius: 8px;
-  padding: 7px 14px;
+  padding: 8px 18px;
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
@@ -334,6 +373,17 @@ main {
   font-weight: 800;
   line-height: 1.2;
 }
+.day .confirm-memo-tag {
+  font-size: 8px;
+  font-weight: 600;
+  opacity: .92;
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 0 2px;
+}
 .day.admin-pick { box-shadow: 0 0 0 3px var(--primary); border-color: var(--primary); }
 
 /* ---- 관리자 바 ---- */
@@ -354,7 +404,17 @@ main {
   padding: 2px 8px;
   margin-right: 8px;
 }
-.admin-actions { margin-top: 12px; display: flex; gap: 10px; flex-wrap: wrap; }
+.confirm-memo {
+  margin-top: 12px;
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 9px 12px;
+  font-size: 14px;
+}
+.confirm-memo:focus { outline: none; border-color: var(--confirm); }
+.admin-actions { margin-top: 10px; display: flex; gap: 10px; flex-wrap: wrap; }
 .btn-confirm {
   background: var(--confirm);
   color: #fff;

@@ -9,7 +9,8 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# Turso 임베디드 레플리카 (사용 안 함 — 혹시 생성될 경우 대비)
+# 로컬 개발용 SQLite DB (운영은 Turso)
+local.db*
 local-replica.db*
 
 # 로컬 실행 임시 파일

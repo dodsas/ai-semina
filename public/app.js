@@ -20,6 +20,10 @@ const state = {
 const MAX_CONFIRMED = 3;
 const isAdmin = () => !!state.adminToken;
 
+// 확정 일정은 [{ date, memo }] 형태
+const confirmedEntry = (ds) => state.confirmed.find((c) => c.date === ds);
+const isDateConfirmed = (ds) => state.confirmed.some((c) => c.date === ds);
+
 // 구독 AI 코드 → 표시 라벨
 const AI_LABEL = { CLAUDE: 'Claude', CHATGPT: 'ChatGPT', NONE: '없음', OTHER: '기타' };
 function aiText(accounts, etc) {
@@ -60,6 +64,8 @@ const el = {
   adminInfo: document.getElementById('admin-info'),
   setConfirmBtn: document.getElementById('set-confirm-btn'),
   clearConfirmBtn: document.getElementById('clear-confirm-btn'),
+  confirmMemo: document.getElementById('confirm-memo'),
+  confirmTime: document.getElementById('confirm-time'),
   clearDataBtn: document.getElementById('clear-data-btn'),
   loginModal: document.getElementById('login-modal'),
   loginId: document.getElementById('login-id'),
@@ -260,7 +266,8 @@ function renderCalendar() {
     const othersCount = voters.filter((v) => v !== state.member).length;
     const mine = state.selected.has(ds);
 
-    const isConfirmed = state.confirmed.includes(ds);
+    const confEntry = confirmedEntry(ds);
+    const isConfirmed = !!confEntry;
     const isAdminPick = isAdmin() && state.adminPick === ds;
     const isToday = TODAY === ds;
 
@@ -283,7 +290,8 @@ function renderCalendar() {
     if (isConfirmed) {
       const tag = document.createElement('span');
       tag.className = 'confirm-label';
-      tag.innerHTML = `일정확정<br>${state.seminarTime}`;
+      const memoLine = confEntry.memo ? `<br><span class="confirm-memo-tag">📝 ${confEntry.memo}</span>` : '';
+      tag.innerHTML = `일정확정<br>${confEntry.time || state.seminarTime}${memoLine}`;
       cell.appendChild(tag);
     }
 
@@ -296,7 +304,9 @@ function renderCalendar() {
       cell.appendChild(c);
     }
 
-    cell.title = voters.length ? `투표: ${voters.join(', ')}` : '';
+    cell.title = isConfirmed && confEntry.memo
+      ? `확정 메모: ${confEntry.memo}`
+      : voters.length ? `투표: ${voters.join(', ')}` : '';
     cell.onclick = () => (isAdmin() ? adminPickDate(ds) : toggleDate(ds));
     el.calendar.appendChild(cell);
   }
@@ -379,7 +389,10 @@ el.confirmBtn.onclick = async () => {
 function renderConfirmBanner() {
   if (state.confirmed.length) {
     const list = state.confirmed
-      .map((ds) => `6월 ${dayOf(ds)}일 (${dowKor(ds)}) ${state.seminarTime}`)
+      .map((c) => {
+        const memo = c.memo ? ` — 📝 ${c.memo}` : '';
+        return `6월 ${dayOf(c.date)}일 (${dowKor(c.date)}) ${c.time || state.seminarTime}${memo}`;
+      })
       .join(' · ');
     el.confirmBanner.hidden = false;
     el.confirmBanner.innerHTML = `✅ 확정 일정: <strong>${list}</strong>`;
@@ -514,6 +527,10 @@ function renderMemberInfoTable(members) {
 
 function adminPickDate(ds) {
   state.adminPick = state.adminPick === ds ? null : ds;
+  // 확정된 날짜를 고르면 기존 메모/시간을 프리필, 아니면 기본값
+  const entry = state.adminPick ? confirmedEntry(state.adminPick) : null;
+  el.confirmMemo.value = entry ? entry.memo : '';
+  el.confirmTime.value = entry ? entry.time || state.seminarTime : state.seminarTime;
   renderCalendar();
   updateAdminInfo();
 }
@@ -521,7 +538,7 @@ function adminPickDate(ds) {
 function updateAdminInfo() {
   if (!isAdmin()) return;
   const n = state.confirmed.length;
-  const list = n ? state.confirmed.map((d) => `6월 ${dayOf(d)}일`).join(', ') : '없음';
+  const list = n ? state.confirmed.map((c) => `6월 ${dayOf(c.date)}일`).join(', ') : '없음';
   el.adminInfo.textContent = `확정 ${n}/${MAX_CONFIRMED} · ${list}`;
 
   const pick = state.adminPick;
@@ -529,7 +546,7 @@ function updateAdminInfo() {
   if (!pick) {
     btn.disabled = true;
     btn.textContent = '날짜를 선택하세요';
-  } else if (state.confirmed.includes(pick)) {
+  } else if (isDateConfirmed(pick)) {
     btn.disabled = false;
     btn.textContent = `6월 ${dayOf(pick)}일 확정 해제`;
   } else if (n >= MAX_CONFIRMED) {
@@ -537,7 +554,7 @@ function updateAdminInfo() {
     btn.textContent = `확정은 최대 ${MAX_CONFIRMED}개까지`;
   } else {
     btn.disabled = false;
-    btn.textContent = `6월 ${dayOf(pick)}일 확정 (${state.seminarTime})`;
+    btn.textContent = `6월 ${dayOf(pick)}일 ${el.confirmTime.value} 확정`;
   }
 }
 
@@ -633,7 +650,15 @@ el.setConfirmBtn.onclick = async () => {
   if (!state.adminPick) return;
   el.setConfirmBtn.disabled = true;
   try {
-    await postConfirm({ date: state.adminPick });
+    // 추가 시 메모/시작시간 함께 저장 (해제 시 서버에서 무시)
+    await postConfirm({
+      date: state.adminPick,
+      memo: el.confirmMemo.value.trim(),
+      time: el.confirmTime.value
+    });
+    // 저장 후 현재 선택 날짜의 메모로 메모칸 동기화
+    const entry = state.adminPick ? confirmedEntry(state.adminPick) : null;
+    el.confirmMemo.value = entry ? entry.memo : '';
   } catch (err) {
     console.error(err);
     alert('일정 확정에 실패했습니다.');
@@ -694,6 +719,9 @@ el.clearDataBtn.onclick = async () => {
 
 // 추가정보 체크박스 상호작용 (인라인)
 document.querySelectorAll('.ai-chk').forEach((c) => c.addEventListener('change', syncInfoModalState));
+
+// 시작 시간 변경 시 확정 버튼 라벨 갱신
+el.confirmTime.addEventListener('input', () => { if (isAdmin()) updateAdminInfo(); });
 
 // 관리자 현황 새로고침
 el.refreshInfoBtn.onclick = loadMemberInfoTable;
