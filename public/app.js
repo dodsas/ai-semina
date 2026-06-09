@@ -46,6 +46,7 @@ const el = {
   tabs: document.getElementById('tabs'),
   members: document.getElementById('members'),
   memberPanel: document.getElementById('member-panel'),
+  calTitle: document.getElementById('cal-title'),
   memberExtra: document.getElementById('member-extra'),
   memberExtraLabel: document.getElementById('member-extra-label'),
   infoEtc: document.getElementById('info-etc'),
@@ -164,6 +165,12 @@ function renderMembers() {
   const members = currentTeam().members;
   const active = members.filter((m) => !done.has(m.name));
   const finished = members.filter((m) => done.has(m.name));
+
+  // 전원 투표 완료 시에만 캘린더 제목을 '세미나 일정'으로
+  const allVoted = members.length > 0 && active.length === 0;
+  el.calTitle.textContent = allVoted
+    ? '2. 2026년 6월 — 세미나 일정'
+    : '2. 2026년 6월 — 가능한 날짜 선택';
 
   // 1) 아직 투표하지 않은 인원 (본인 선택 대상)
   const grid = document.createElement('div');

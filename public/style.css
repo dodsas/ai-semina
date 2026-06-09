@@ -106,7 +106,13 @@ main {
   grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
   gap: 8px;
 }
-.empty-note { color: var(--muted); font-size: 14px; margin: 2px 0; }
+.empty-note {
+  grid-column: 1 / -1;   /* 그리드 한 칸이 아닌 전체 폭 사용 */
+  color: var(--muted);
+  font-size: 14px;
+  margin: 2px 0;
+  word-break: keep-all;  /* 한글 단어(어절) 단위로만 줄바꿈 */
+}
 
 .completed { border-top: 1px dashed var(--line); padding-top: 12px; }
 .completed-head {
