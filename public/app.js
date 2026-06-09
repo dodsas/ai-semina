@@ -290,8 +290,10 @@ function renderCalendar() {
     if (isConfirmed) {
       const tag = document.createElement('span');
       tag.className = 'confirm-label';
+      const cnt = voters.length; // 확정 날짜 참여 인원
+      const countLine = cnt > 0 ? ` · 👥${cnt}` : '';
       const memoLine = confEntry.memo ? `<br><span class="confirm-memo-tag">📝 ${confEntry.memo}</span>` : '';
-      tag.innerHTML = `일정확정<br>${confEntry.time || state.seminarTime}${memoLine}`;
+      tag.innerHTML = `일정확정<br>${confEntry.time || state.seminarTime}${countLine}${memoLine}`;
       cell.appendChild(tag);
     }
 
@@ -390,8 +392,10 @@ function renderConfirmBanner() {
   if (state.confirmed.length) {
     const items = state.confirmed
       .map((c) => {
+        const cnt = (state.votesByDate[c.date] || []).length;
+        const countTag = cnt > 0 ? ` 👥${cnt}명` : '';
         const memo = c.memo ? ` <span class="confirm-item-memo">— 📝 ${c.memo}</span>` : '';
-        return `<div class="confirm-item">6월 ${dayOf(c.date)}일 (${dowKor(c.date)}) <strong>${c.time || state.seminarTime}</strong>${memo}</div>`;
+        return `<div class="confirm-item">6월 ${dayOf(c.date)}일 (${dowKor(c.date)}) <strong>${c.time || state.seminarTime}</strong>${countTag}${memo}</div>`;
       })
       .join('');
     el.confirmBanner.hidden = false;
