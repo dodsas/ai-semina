@@ -388,14 +388,14 @@ el.confirmBtn.onclick = async () => {
 
 function renderConfirmBanner() {
   if (state.confirmed.length) {
-    const list = state.confirmed
+    const items = state.confirmed
       .map((c) => {
-        const memo = c.memo ? ` — 📝 ${c.memo}` : '';
-        return `6월 ${dayOf(c.date)}일 (${dowKor(c.date)}) ${c.time || state.seminarTime}${memo}`;
+        const memo = c.memo ? ` <span class="confirm-item-memo">— 📝 ${c.memo}</span>` : '';
+        return `<div class="confirm-item">6월 ${dayOf(c.date)}일 (${dowKor(c.date)}) <strong>${c.time || state.seminarTime}</strong>${memo}</div>`;
       })
-      .join(' · ');
+      .join('');
     el.confirmBanner.hidden = false;
-    el.confirmBanner.innerHTML = `✅ 확정 일정: <strong>${list}</strong>`;
+    el.confirmBanner.innerHTML = `<div class="confirm-head">✅ 확정 일정</div>${items}`;
   } else {
     el.confirmBanner.hidden = true;
     el.confirmBanner.textContent = '';

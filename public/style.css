@@ -350,10 +350,21 @@ main {
   border: 1px solid var(--confirm);
   color: var(--confirm-d);
   border-radius: 10px;
-  padding: 10px 14px;
+  padding: 12px 14px;
   font-size: 15px;
   margin-bottom: 12px;
 }
+.confirm-banner .confirm-head {
+  font-weight: 800;
+  margin-bottom: 6px;
+}
+.confirm-banner .confirm-item {
+  padding: 3px 0 3px 6px;
+  border-left: 3px solid var(--confirm);
+  margin: 4px 0;
+  line-height: 1.5;
+}
+.confirm-banner .confirm-item-memo { color: var(--confirm-d); opacity: .85; }
 
 /* ---- 확정된 날짜 셀 (가장 강조) ---- */
 .day.confirmed {
