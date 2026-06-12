@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+
+<html lang="ko">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1" name="viewport"/>
+<title>웹 기초 세미나</title>
+<style>
+:root{
+  --bg:#f7f4ee; --ink:#111; --red:#e63946; --orange:#f28c28; --yellow:#f5c400; --green:#20a45f; --blue:#1e7cff; --navy:#1f3f8b;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;font-family:"Pretendard","Noto Sans KR","Apple SD Gothic Neo","Segoe UI",sans-serif;background:#111;color:var(--ink)}
+.deck{height:100vh;overflow-y:scroll;scroll-snap-type:y mandatory}
+.slide{height:100vh;scroll-snap-align:start;background:radial-gradient(circle at 80% 10%,#fff 0,#f9f6ef 35%,#efe8dc 100%);display:flex;align-items:center;justify-content:center;padding:6vw;position:relative;overflow:hidden}
+.content{width:min(1180px,100%)}
+h1{font-size:clamp(56px,7vw,110px);line-height:1;margin:0 0 42px;font-weight:900;letter-spacing:-.06em}
+.lead{font-size:clamp(32px,4.2vw,68px);line-height:1.25;letter-spacing:-.045em;margin:0}
+.lead.small{font-size:clamp(28px,3.2vw,48px)}
+.point{font-size:clamp(24px,2.5vw,38px);line-height:1.35;letter-spacing:-.035em;color:#333;margin:40px 0 0}
+.subtitle{font-size:clamp(40px,5vw,72px);font-weight:850;letter-spacing:-.045em;margin:34px 0;color:#111}
+.urlBox{font-size:clamp(20px,3.2vw,52px);font-weight:850;letter-spacing:-.055em;padding:24px 28px;border:4px solid #111;border-radius:24px;background:rgba(255,255,255,.72);white-space:nowrap;overflow:visible;text-overflow:clip;width:100%}
+.urlBox.plain{border-color:#ddd;background:rgba(255,255,255,.5)}
+.urlBox span,.urlBox .urlText{white-space:nowrap;display:inline-block}
+.urlOnly{background:#f7f4ee;padding:3vw}
+.hugeUrl{font-weight:950;line-height:1.04;letter-spacing:-.07em;color:#111;text-align:center;white-space:nowrap;width:100%;display:block;overflow:visible}
+.hugeUrl span{white-space:nowrap;display:inline-block}
+.urlOnly .content{width:96vw;max-width:none;text-align:center}
+.urlSummary{align-items:center;justify-content:center;padding-top:0;padding-bottom:0}
+.urlSummary .content{transform:translateY(-2vh)}
+.legend{display:flex;justify-content:center;gap:18px;flex-wrap:wrap;margin-top:54px;font-size:clamp(22px,2.3vw,36px);font-weight:850}
+.legend span{padding:16px 24px;border-radius:999px;background:#fff;box-shadow:0 10px 30px rgba(0,0,0,.08)}
+.red{color:var(--red)} .orange{color:var(--orange)} .yellow{color:var(--yellow)} .green{color:var(--green)} .blue{color:var(--blue)} .navy{color:var(--navy)} .yellowText{color:#b88e00}
+.visual-line,.dnsFlow,.portList,.dbWords{display:flex;gap:18px;flex-wrap:wrap;margin-top:56px;font-size:clamp(22px,2.4vw,36px);font-weight:800}
+.visual-line,.dnsFlow span,.portList span,.dbWords span{padding:16px 24px;border-radius:999px;background:#fff;box-shadow:0 10px 30px rgba(0,0,0,.08)}
+.split{display:grid;grid-template-columns:1fr 1fr;gap:28px;margin-top:28px}
+.split p{font-size:clamp(24px,2.2vw,34px);line-height:1.35;margin:0;padding:28px;border-radius:24px;background:#fff;box-shadow:0 10px 25px rgba(0,0,0,.07)}
+pre{font-size:clamp(22px,2vw,32px);line-height:1.35;background:#111;color:#fff;border-radius:24px;padding:26px 30px;white-space:pre-wrap;margin:34px 0 0}
+.osiWrap{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:20px}
+.osiCard{display:flex;align-items:center;gap:18px;background:#fff;border-radius:22px;padding:18px 22px;box-shadow:0 10px 25px rgba(0,0,0,.08)}
+.osiNo{width:58px;height:58px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:#111;color:#fff;font-size:26px;font-weight:900;flex:none}
+.osiTitle{font-size:clamp(24px,2.2vw,36px);font-weight:900;letter-spacing:-.04em}.osiDesc{font-size:clamp(16px,1.3vw,22px);color:#555;margin-top:4px;letter-spacing:-.03em}
+.pageNo{position:absolute;right:2.2vw;bottom:1.6vw;font-size:clamp(13px,1.2vw,20px);font-weight:700;color:rgba(35,35,35,.55);letter-spacing:.02em;z-index:20}
+.nav{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);z-index:10;background:rgba(17,17,17,.82);color:#fff;padding:10px 18px;border-radius:999px;font-size:14px;backdrop-filter:blur(8px)}
+
+.osiSplit{display:grid;grid-template-columns:1fr 1fr;gap:34px;align-items:center;width:100%;margin-top:8px}
+.osiImagePanel{height:min(66vh,660px);display:flex;align-items:center;justify-content:center;background:#fff;border-radius:30px;padding:24px;box-shadow:0 18px 42px rgba(0,0,0,.10);overflow:hidden}
+.osiImagePanel img{max-width:100%;max-height:100%;object-fit:contain;display:block}
+.osiExplain{display:grid;grid-template-columns:1fr;gap:12px;max-height:70vh;overflow:visible}
+.osiSplit .osiCard{padding:13px 18px;border-radius:18px;gap:14px}
+.osiSplit .osiNo{width:48px;height:48px;font-size:23px}
+.osiSplit .osiTitle{font-size:clamp(20px,1.7vw,30px)}
+.osiSplit .osiDesc{font-size:clamp(14px,1.05vw,19px)}
+.osiSource{font-size:clamp(11px,.85vw,14px);color:#777;text-align:center;margin-top:10px;word-break:break-all}
+
+.osiToday .osiCard.key7{border-left:10px solid var(--red)}
+.osiToday .osiCard.key4{border-left:10px solid var(--blue)}
+.osiToday .osiCard.key3{border-left:10px solid var(--green)}
+.osiToday .osiCard.dim{opacity:.82}
+.todayChips{display:flex;flex-wrap:wrap;gap:10px;margin:0 0 12px}
+.todayChips span{font-size:clamp(14px,1vw,18px);font-weight:900;padding:9px 13px;border-radius:999px;background:#fff;box-shadow:0 8px 20px rgba(0,0,0,.07)}
+.osiToday .osiExplain{gap:9px}
+.osiToday .osiSplit .osiCard{padding:10px 15px}
+.osiToday .osiSplit .osiTitle{font-size:clamp(18px,1.45vw,26px)}
+.osiToday .osiSplit .osiDesc{font-size:clamp(13px,.95vw,17px)}
+.osiToday h1{font-size:clamp(44px,5vw,76px);margin-bottom:18px}
+
+
+.coverSlide{background:linear-gradient(135deg,#111 0%,#1b1b1b 46%,#f2eee6 46%,#f7f4ee 100%);color:#111}
+.coverWrap{width:min(1180px,100%);display:grid;grid-template-columns:1.05fr .95fr;gap:54px;align-items:center}
+.coverBadge{display:inline-block;background:#fff;color:#111;border-radius:999px;padding:14px 24px;font-size:clamp(18px,1.7vw,28px);font-weight:900;letter-spacing:-.03em;box-shadow:0 18px 40px rgba(0,0,0,.18);margin-bottom:34px}
+.coverTitle{font-size:clamp(52px,6.6vw,104px);line-height:1.04;font-weight:950;letter-spacing:-.075em;margin:0;color:#fff}
+.coverTitle .ai{color:#f28c28}
+.coverSub{font-size:clamp(26px,3vw,46px);font-weight:850;letter-spacing:-.045em;margin-top:34px;color:rgba(255,255,255,.82)}
+.coverCard{background:#fff;border-radius:38px;padding:48px 44px;box-shadow:0 24px 70px rgba(0,0,0,.20)}
+.coverCard p{font-size:clamp(24px,2.2vw,38px);font-weight:850;line-height:1.25;letter-spacing:-.045em;margin:0 0 18px}
+.coverChips{display:flex;flex-wrap:wrap;gap:12px;margin-top:34px}
+.coverChips span{font-size:clamp(15px,1.2vw,22px);font-weight:900;padding:12px 16px;border-radius:999px;background:#f7f4ee}
+@media(max-width:900px){.coverWrap{grid-template-columns:1fr}.coverTitle{color:#fff}.coverCard{padding:34px 28px}}
+
+@media(max-width:900px){.slide{padding:7vw}.split,.osiWrap,.osiSplit{grid-template-columns:1fr}.legend{margin-top:32px}.osiImagePanel{height:34vh}.osiExplain{max-height:none}.urlSummary .content{transform:translateY(0)}}
+</style>
+</head>
+<body>
+<div class="deck">
+<section class="slide coverSlide"><div class="coverWrap"><div><div class="coverBadge">WEB BASIC SEMINAR</div><h1 class="coverTitle">웹 사이트<br/><span class="ai">AI</span>와 함께<br/>1시간만에<br/>오픈하기 A-Z</h1><div class="coverSub">인터넷부터 웹 서비스 구조까지</div></div><div class="coverCard"><p>오늘 볼 핵심 흐름</p><div class="coverChips"><span>Internet</span><span>HTTP</span><span>HTML</span><span>HTTPS</span><span>Domain</span><span>DNS</span><span>Port</span><span>Path</span><span>Database</span><span>OSI 7계층</span></div></div></div><div class="pageNo">(1/14)</div></section>
+<section class="slide"><div class="content"><h1>인터넷</h1><p class="lead">전 세계의 다양한 장치들이<br/><b>공통된 통신 규칙</b>으로 서로 연결된<br/>거대한 네트워크다.</p><div class="visual-line">PC · 스마트폰 · 서버 · 공유기 · IoT</div></div><div class="pageNo">(2/14)</div></section><section class="slide osiSlide osiToday"><div class="content"><h1>OSI 7계층</h1><div class="osiSplit"><div><div class="osiImagePanel"><img alt="OSI 7계층 모델 이미지" src="https://datageneral.co/wp-content/uploads/2023/12/Capas-modelo-OSI.png"/></div><div class="osiSource">이미지: datageneral.co</div></div><div class="osiExplain"><div class="todayChips"><span class="red">HTTP/HTTPS</span><span class="orange">HTML</span><span class="green">DOMAIN/DNS/IP</span><span class="blue">TCP/PORT</span><span class="navy">PATH</span></div><div class="osiCard key7"><div class="osiNo">7</div><div><div class="osiTitle">응용 계층</div><div class="osiDesc"><span class="red">HTTP/HTTPS</span>, <span class="orange">HTML</span>, <span class="navy">PATH</span>처럼 사용자가 체감하는 서비스 규칙</div></div></div>
+<div class="osiCard dim"><div class="osiNo">6</div><div><div class="osiTitle">표현 계층</div><div class="osiDesc">데이터 형식 변환, 암호화 표현 방식</div></div></div>
+<div class="osiCard dim"><div class="osiNo">5</div><div><div class="osiTitle">세션 계층</div><div class="osiDesc">연결 상태와 대화 흐름 관리</div></div></div>
+<div class="osiCard key4"><div class="osiNo">4</div><div><div class="osiTitle">전송 계층</div><div class="osiDesc"><span class="blue">TCP</span>가 안정적으로 보내고, <span class="blue">PORT</span>가 서비스 입구를 구분</div></div></div>
+<div class="osiCard key3"><div class="osiNo">3</div><div><div class="osiTitle">네트워크 계층</div><div class="osiDesc"><span class="green">IP</span> 주소 기준으로 목적지까지 찾아가는 계층</div></div></div>
+<div class="osiCard dim"><div class="osiNo">2</div><div><div class="osiTitle">데이터 링크 계층</div><div class="osiDesc">같은 네트워크 안에서 MAC 주소 기반 전달</div></div></div>
+<div class="osiCard dim"><div class="osiNo">1</div><div><div class="osiTitle">물리 계층</div><div class="osiDesc">케이블, 전기 신호, 무선 신호</div></div></div></div></div></div><div class="pageNo">(3/14)</div></section>
+<section class="slide"><div class="content"><h1>웹서비스</h1><p class="lead">인터넷을 통해 사용자의 요청을 받고,<br/>서버가 처리한 결과를 다시 사용자에게 제공하는 시스템.</p><p class="point">결국 웹 서비스는 <b>HTTP 요청과 응답</b>을 반복하는 시스템이다.</p></div><div class="pageNo">(4/14)</div></section>
+<section class="slide urlOnly"><div class="content"><div class="hugeUrl fitUrl">https://weather.naver.com:443/compare/09560540</div></div><div class="pageNo">(5/14)</div></section>
+<section class="slide"><div class="content"><h1>HTTP</h1><div class="urlBox fitUrl smallFit"><span class="red">http</span><span>s://weather.naver.com:443/compare/09560540</span></div><p class="subtitle">HyperText Transfer Protocol</p><p class="lead small">웹에서 요청과 응답을 주고받기 위한 약속</p></div><div class="pageNo">(6/14)</div></section>
+<section class="slide"><div class="content"><h1>HTML</h1><div class="urlBox plain fitUrl smallFit">https://weather.naver.com:443/compare/09560540</div><p class="subtitle"><span class="orange">HyperText</span> Transfer Protocol</p><div class="split"><p><b>HyperText</b><br/>링크를 통해 다른 위치로 이동 가능한 텍스트.</p><p><b>Markup</b><br/>내용에 역할과 의미를 표시.</p></div><pre>&lt;h1&gt; 제목입니다 &lt;/h1&gt;
+h1 = 가장 큰 제목이라는 마크업</pre><p class="point"><b>HyperText</b>와 <b>Markup</b>을 합쳐서 <b>HTML</b>이라고 표현한다.</p></div><div class="pageNo">(7/14)</div></section>
+<section class="slide"><div class="content"><h1>HTTPS</h1><div class="urlBox fitUrl smallFit"><span>http</span><span class="yellow">s</span><span>://weather.naver.com:443/compare/09560540</span></div><p class="subtitle">HTTP + Secure</p><p class="lead small">보안이 적용된 프로토콜.</p><p class="point">사이트의 신뢰성을 확인하고,<br/>주고받는 데이터를 암호화한다.</p></div><div class="pageNo">(8/14)</div></section>
+<section class="slide"><div class="content"><h1>DOMAIN</h1><div class="urlBox fitUrl smallFit"><span>https://</span><span class="green">weather.naver.com</span><span>:443/compare/09560540</span></div><p class="lead small">인터넷에서 접속하려는 대상 서버를 찾아가기 위한 이름.</p><p class="point">도메인은 사람이 읽기 쉬운 서버 주소이고,<br/>DNS를 통해 실제 접속 가능한 IP 주소로 해석된다.</p><pre>nslookup weather.naver.com</pre></div><div class="pageNo">(9/14)</div></section>
+<section class="slide"><div class="content"><h1>DNS</h1><p class="subtitle">Domain Name System</p><p class="lead">도메인 이름을<br/><b>IP 주소</b>로 바꿔주는 시스템.</p><div class="dnsFlow"><span>weather.naver.com</span><span>→</span><span>IP 주소</span></div></div><div class="pageNo">(10/14)</div></section>
+<section class="slide"><div class="content"><h1>PORT</h1><div class="urlBox fitUrl smallFit"><span>https://weather.naver.com:</span><span class="blue">443</span><span>/compare/09560540</span></div><p class="lead">서버 안에서 어떤 프로그램/서비스로<br/>요청을 보낼지 구분하는 번호.</p><div class="portList"><span>HTTP 80</span><span>HTTPS 443</span><span>SSH 22</span><span>DB 3306</span></div></div><div class="pageNo">(11/14)</div></section>
+<section class="slide"><div class="content"><h1>PATH</h1><div class="urlBox fitUrl smallFit"><span>https://weather.naver.com:443</span><span class="navy">/compare/09560540</span></div><p class="lead">프로그램/서비스 안에서<br/>어떤 페이지나 기능을 요청할지 나타내는 경로.</p><p class="point"><b>/compare/09560540</b><br/>네이버 날씨 서비스 안의 특정 페이지</p></div><div class="pageNo">(12/14)</div></section>
+<section class="slide urlOnly urlSummary"><div class="content"><div class="hugeUrl all fitUrl"><span class="red">http</span><span class="yellow">s</span><span>://</span><span class="green">weather.naver.com</span><span>:</span><span class="blue">443</span><span class="navy">/compare/09560540</span></div><div class="legend"><span class="red">HTTP</span><span class="yellowText">S</span><span class="green">DOMAIN</span><span class="blue">PORT</span><span class="navy">PATH</span></div></div><div class="pageNo">(13/14)</div></section>
+<section class="slide"><div class="content"><h1>Database</h1><p class="lead">웹 서비스에서 사용하는 데이터를<br/>저장하고 관리하는 기술.</p><p class="point">회원 정보, 주문 내역, 게시글, 결제 기록처럼<br/>서비스가 종료되어도 유지되어야 하는 데이터를 저장한다.</p><div class="dbWords"><span>회원</span><span>주문</span><span>게시글</span><span>결제</span></div></div><div class="pageNo">(14/14)</div></section>
+
+</div>
+<div class="nav">↑ ↓ 키 또는 스크롤로 이동</div>
+<script>
+function fitUrlText(){
+  document.querySelectorAll('.fitUrl').forEach(el=>{
+    const isHuge = el.classList.contains('hugeUrl');
+    const max = isHuge ? 120 : 54;
+    const min = isHuge ? 18 : 14;
+    el.style.fontSize = max + 'px';
+    el.style.whiteSpace = 'nowrap';
+    el.style.display = 'block';
+    el.style.lineHeight = isHuge ? '1.04' : '1.1';
+    const parentWidth = (el.parentElement ? el.parentElement.clientWidth : window.innerWidth) - 4;
+    let size = max;
+    while(el.scrollWidth > parentWidth && size > min){
+      size -= 1;
+      el.style.fontSize = size + 'px';
+    }
+  });
+}
+window.addEventListener('load', fitUrlText);
+window.addEventListener('resize', fitUrlText);
+document.addEventListener('keydown', e => {
+ const deck=document.querySelector('.deck');
+ if(e.key==='ArrowDown'||e.key==='PageDown') deck.scrollBy({top:innerHeight,behavior:'smooth'});
+ if(e.key==='ArrowUp'||e.key==='PageUp') deck.scrollBy({top:-innerHeight,behavior:'smooth'});
+});
+</script>
+</body>
+</html>

@@ -14,7 +14,9 @@ const state = {
   confirmed: [],       // 확정된 날짜 배열 (최대 3개)
   seminarTime: '15:00',
   adminToken: localStorage.getItem('adminToken') || null,
-  adminPick: null      // 관리자가 확정하려고 고른 날짜
+  adminPick: null,     // 관리자가 확정하려고 고른 날짜
+  view: 'schedule',    // 'schedule' | 'submit'
+  submissions: []      // 과제 제출 현황 [{ name, dept, url, updatedAt }]
 };
 
 const MAX_CONFIRMED = 3;
@@ -74,7 +76,14 @@ const el = {
   loginErr: document.getElementById('login-err'),
   loginSubmit: document.getElementById('login-submit'),
   loginCancel: document.getElementById('login-cancel'),
-  loading: document.getElementById('loading')
+  loading: document.getElementById('loading'),
+  mtSchedule: document.getElementById('mt-schedule'),
+  mtSubmit: document.getElementById('mt-submit'),
+  viewSchedule: document.getElementById('view-schedule'),
+  viewSubmit: document.getElementById('view-submit'),
+  submitTeamName: document.getElementById('submit-team-name'),
+  submissionSummary: document.getElementById('submission-summary'),
+  submissionList: document.getElementById('submission-list')
 };
 
 // 로딩 스피너 (동시 호출 대비 카운터)
@@ -127,6 +136,7 @@ async function selectTeam(teamId) {
   // 이전 팀 데이터 비우고 즉시 렌더 (탭 전환 체감 지연 제거)
   state.votesByDate = {};
   state.confirmed = [];
+  state.submissions = [];
   renderTabs();
   setSaveStatus('');
   renderMembers();
@@ -135,6 +145,8 @@ async function selectTeam(teamId) {
   updateConfirmBtn();
   renderConfirmBanner();
   updateAdminInfo();
+  renderSubmissions();
+  if (state.view === 'submit') loadSubmissions();
   // 투표/확정 데이터는 백그라운드로 로드 후 다시 렌더
   await loadVotes();
   if (state.currentTeam !== teamId) return; // 로딩 중 다른 팀 선택 시 무시
@@ -411,6 +423,151 @@ function renderConfirmBanner() {
     el.confirmBanner.hidden = true;
     el.confirmBanner.textContent = '';
   }
+}
+
+/* ---------------- 큰 탭 (일정 확인 / 과제 제출) ---------------- */
+
+function switchView(view) {
+  if (view === state.view) return;
+  state.view = view;
+  el.viewSchedule.hidden = view !== 'schedule';
+  el.viewSubmit.hidden = view !== 'submit';
+  el.mtSchedule.classList.toggle('active', view === 'schedule');
+  el.mtSubmit.classList.toggle('active', view === 'submit');
+  if (view === 'submit') {
+    renderSubmissions();
+    loadSubmissions();
+  }
+}
+
+el.mtSchedule.onclick = () => switchView('schedule');
+el.mtSubmit.onclick = () => switchView('submit');
+
+/* ---------------- 과제 제출 ---------------- */
+
+async function loadSubmissions() {
+  setLoading(true);
+  try {
+    const teamId = state.currentTeam;
+    const res = await fetch(`/api/submissions?team=${encodeURIComponent(teamId)}`);
+    if (!res.ok) throw new Error('load failed');
+    const data = await res.json();
+    if (state.currentTeam !== teamId) return; // 로딩 중 팀 변경 시 무시
+    state.submissions = data.members || [];
+    renderSubmissions();
+  } catch (err) {
+    console.error(err);
+    el.submissionList.innerHTML = '<p class="empty-note">제출 현황을 불러오지 못했습니다.</p>';
+  } finally {
+    setLoading(false);
+  }
+}
+
+function renderSubmissions() {
+  const team = currentTeam();
+  el.submitTeamName.textContent = team ? team.name : '';
+  const members = state.submissions;
+  if (!members.length) {
+    el.submissionSummary.textContent = '';
+    el.submissionList.innerHTML = '<p class="empty-note">불러오는 중…</p>';
+    return;
+  }
+  const done = members.filter((m) => m.url).length;
+  el.submissionSummary.textContent = `제출 완료 ${done} / 전체 ${members.length}명`;
+  el.submissionList.innerHTML = '';
+  for (const m of members) el.submissionList.appendChild(submissionRow(m));
+}
+
+function submissionRow(m) {
+  const row = document.createElement('div');
+  row.className = 'sub-row' + (m.url ? ' done' : '');
+
+  const head = document.createElement('div');
+  head.className = 'sub-head';
+  head.innerHTML =
+    `<span class="sub-name">${escapeHtml(m.name)}</span>` +
+    `<span class="sub-dept">${escapeHtml(m.dept)}</span>`;
+  row.append(head);
+
+  if (m.url) {
+    // 제출 완료 → 사이트명 하이퍼링크(새 탭) + 제출 취소
+    const a = document.createElement('a');
+    a.className = 'sub-link';
+    a.href = m.url;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    a.textContent = m.title || m.url; // 사이트명 없으면 주소로 대체
+    a.title = m.url;                   // 호버 시 실제 주소 표시
+    row.append(a);
+
+    const del = document.createElement('button');
+    del.className = 'btn-clear sub-del';
+    del.textContent = '제출 취소';
+    del.onclick = () => {
+      if (confirm(`${m.name} 님의 제출을 취소할까요?\n(다시 제출하려면 새로 입력해야 합니다)`)) {
+        saveSubmission(m.name, '', '');
+      }
+    };
+    row.append(del);
+  } else {
+    // 미제출 → 사이트명 + URL 입력 + 제출
+    const titleInput = document.createElement('input');
+    titleInput.className = 'sub-input sub-title-input';
+    titleInput.type = 'text';
+    titleInput.maxLength = 100;
+    titleInput.placeholder = '사이트명';
+
+    const urlInput = document.createElement('input');
+    urlInput.className = 'sub-input';
+    urlInput.type = 'url';
+    urlInput.placeholder = 'https://… 사이트 주소';
+
+    const submit = () => {
+      const title = titleInput.value.trim();
+      const url = urlInput.value.trim();
+      if (!url) { alert('사이트 주소(URL)를 입력해주세요.'); urlInput.focus(); return; }
+      if (!title) { alert('사이트명을 입력해주세요.'); titleInput.focus(); return; }
+      saveSubmission(m.name, url, title);
+    };
+    [titleInput, urlInput].forEach((inp) =>
+      inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); }));
+
+    const save = document.createElement('button');
+    save.className = 'btn-submit';
+    save.textContent = '제출';
+    save.onclick = submit;
+
+    row.append(titleInput, urlInput, save);
+  }
+  return row;
+}
+
+async function saveSubmission(name, url, title) {
+  setLoading(true);
+  try {
+    const res = await fetch('/api/submissions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ team: state.currentTeam, member: name, url, title })
+    });
+    if (res.status === 400) {
+      const data = await res.json().catch(() => ({}));
+      alert(data.error === 'invalid url' ? '올바른 사이트 주소(URL)를 입력해주세요.' : '저장에 실패했습니다.');
+      return;
+    }
+    if (!res.ok) throw new Error('save failed');
+    await loadSubmissions();
+  } catch (err) {
+    console.error(err);
+    alert('제출 저장에 실패했습니다. 다시 시도해주세요.');
+  } finally {
+    setLoading(false);
+  }
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, (c) =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
 /* ---------------- 관리자 모드 ---------------- */

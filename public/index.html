@@ -11,6 +11,7 @@
     <h1>세미나 일정잡으려고 30분만에 만든 웹서비스</h1>
     <p class="sub">팀을 선택하고 본인 이름을 누른 뒤, 가능한 날짜를 골라 투표하세요.</p>
     <div class="guide-links">
+      <a class="guide-link" href="web_basic_seminar_osi_after_internet.html">🌐 웹 기초 세미나</a>
       <a class="guide-link" href="git_vscode_practice_guide.html">🛠 사전준비 툴 설치</a>
       <a class="guide-link" href="ai_cli_install_guide.html">🤖 AI 연동</a>
       <a class="guide-link" href="render_turso_deploy_guide.html">🚀 배포 (Render·Turso)</a>
@@ -18,9 +19,15 @@
     <p class="time-fixed">⏰ 세미나 시작 시간 기본값은 <strong>15:00</strong> 입니다. (확정 시 조정 가능)</p>
   </header>
 
+  <nav class="main-tabs">
+    <button id="mt-schedule" class="main-tab active" type="button">📅 일정 확인</button>
+    <button id="mt-submit" class="main-tab" type="button">📤 과제 제출</button>
+  </nav>
+
   <nav id="tabs" class="tabs"></nav>
 
   <main>
+   <div id="view-schedule">
     <section id="member-panel" class="panel">
       <h2 class="panel-title">1. 본인 선택</h2>
       <div id="members" class="members"></div>
@@ -76,15 +83,29 @@
         <span class="swatch confirmed"></span> 확정 일정
       </p>
     </section>
-  </main>
 
-  <section id="admin-info-panel" class="panel" hidden>
-    <div class="panel-head-row">
-      <h2 class="panel-title">📊 구독 AI 현황 <span id="admin-info-team"></span></h2>
-      <button id="refresh-info-btn" class="btn-secondary">새로고침</button>
-    </div>
-    <div id="member-info-table" class="info-table"></div>
-  </section>
+    <section id="admin-info-panel" class="panel" hidden>
+      <div class="panel-head-row">
+        <h2 class="panel-title">📊 구독 AI 현황 <span id="admin-info-team"></span></h2>
+        <button id="refresh-info-btn" class="btn-secondary">새로고침</button>
+      </div>
+      <div id="member-info-table" class="info-table"></div>
+    </section>
+   </div><!-- /view-schedule -->
+
+   <div id="view-submit" hidden>
+    <section class="panel">
+      <h2 class="panel-title">📤 과제 제출 — <span id="submit-team-name"></span></h2>
+      <p class="modal-sub">
+        본인 행에 <strong>사이트명</strong>과 배포한 <strong>사이트 주소</strong>를 입력하고 제출하세요.
+        제출하면 사이트명을 누를 때 새 탭으로 열립니다.
+        수정하려면 <strong>제출 취소</strong> 후 다시 제출하세요. (인원당 1개)
+      </p>
+      <div id="submission-summary" class="ti-summary"></div>
+      <div id="submission-list" class="submission-list"></div>
+    </section>
+   </div><!-- /view-submit -->
+  </main>
 
   <footer class="admin-footer">
     <button id="admin-btn" class="admin-btn">관리자 로그인</button>

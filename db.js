@@ -82,5 +82,23 @@ export async function initDb() {
       PRIMARY KEY (team, member)
     )
   `);
+  // 과제 제출 (인원당 대표 링크 1개 + 과제명)
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS submissions (
+      team       TEXT NOT NULL,
+      member     TEXT NOT NULL,
+      title      TEXT NOT NULL DEFAULT '',
+      url        TEXT NOT NULL DEFAULT '',
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      PRIMARY KEY (team, member)
+    )
+  `);
+  // 기존 submissions 테이블에 title 컬럼 보강
+  const subInfo = await db.execute('PRAGMA table_info(submissions)');
+  const subCols = subInfo.rows.map((r) => r.name);
+  if (!subCols.includes('title')) {
+    await db.execute("ALTER TABLE submissions ADD COLUMN title TEXT NOT NULL DEFAULT ''");
+    console.log('[DB] submissions.title 컬럼 추가');
+  }
   console.log('[DB] 연결 및 테이블 준비 완료');
 }

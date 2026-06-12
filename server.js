@@ -228,6 +228,83 @@ app.get('/api/admin/member-info', requireAdmin, async (req, res) => {
   }
 });
 
+// ---- 과제 제출 (인원당 대표 사이트 링크 1개) ----
+function normalizeUrl(raw) {
+  if (typeof raw !== 'string') return null;
+  let s = raw.trim().slice(0, 500);
+  if (!s) return ''; // 빈 문자열 = 제출 취소
+  if (!/^https?:\/\//i.test(s)) s = 'https://' + s; // 스킴 생략 시 보정
+  try {
+    const u = new URL(s);
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') return null;
+    return u.toString();
+  } catch {
+    return null;
+  }
+}
+
+// 팀 전체 제출 현황 (인원 명단 + 링크)
+app.get('/api/submissions', async (req, res) => {
+  const team = String(req.query.team || '');
+  if (!TEAM_IDS.has(team)) {
+    return res.status(400).json({ error: 'unknown team' });
+  }
+  try {
+    const r = await db.execute({
+      sql: 'SELECT member, title, url, updated_at FROM submissions WHERE team = ?',
+      args: [team]
+    });
+    const byMember = {};
+    for (const row of r.rows) byMember[row.member] = row;
+    const members = (TEAMS.find((t) => t.id === team)?.members || []).map((m) => {
+      const row = byMember[m.name];
+      return {
+        name: m.name,
+        dept: m.dept,
+        title: row?.title || '',
+        url: row?.url || '',
+        updatedAt: row?.updated_at || null
+      };
+    });
+    res.json({ team, members });
+  } catch (err) {
+    console.error('[GET /api/submissions]', err);
+    res.status(500).json({ error: 'db error' });
+  }
+});
+
+// 본인 제출 링크 저장 (빈 url 이면 삭제 = 제출 취소)
+app.post('/api/submissions', async (req, res) => {
+  const { team, member } = req.body || {};
+  if (!TEAM_IDS.has(team) || !memberNames(team).has(member)) {
+    return res.status(400).json({ error: 'unknown member' });
+  }
+  const url = normalizeUrl(req.body?.url);
+  const title = typeof req.body?.title === 'string' ? req.body.title.trim().slice(0, 100) : '';
+  if (url === null) {
+    return res.status(400).json({ error: 'invalid url' });
+  }
+  try {
+    if (!url) {
+      await db.execute({
+        sql: 'DELETE FROM submissions WHERE team = ? AND member = ?',
+        args: [team, member]
+      });
+      return res.json({ ok: true, url: '', title: '' });
+    }
+    await db.execute({
+      sql: `INSERT INTO submissions (team, member, title, url) VALUES (?, ?, ?, ?)
+            ON CONFLICT(team, member) DO UPDATE SET
+              title = excluded.title, url = excluded.url, updated_at = datetime('now')`,
+      args: [team, member, title, url]
+    });
+    res.json({ ok: true, url, title });
+  } catch (err) {
+    console.error('[POST /api/submissions]', err);
+    res.status(500).json({ error: 'db error' });
+  }
+});
+
 // 관리자: 특정 팀의 투표·확정 데이터 전체 초기화
 app.post('/api/admin/clear', requireAdmin, async (req, res) => {
   const { team } = req.body || {};
