@@ -12,8 +12,8 @@
     <p class="sub">팀을 선택하고 본인 이름을 누른 뒤, 가능한 날짜를 골라 투표하세요.</p>
     <div class="guide-links">
       <a class="guide-link" href="web_basic_seminar_osi_after_internet.html">🌐 웹 기초 세미나</a>
-      <a class="guide-link" href="git_vscode_practice_guide.html">🛠 사전준비 툴 설치</a>
-      <a class="guide-link" href="ai_cli_install_guide.html">🤖 AI 연동</a>
+      <a class="guide-link" href="git_vscode_practice_guide.html">🛠 사전준비 툴 설치 (Git·VS Code·AI)</a>
+      <a class="guide-link" href="git_usage_guide.html">📘 Git 사용 방법</a>
       <a class="guide-link" href="render_turso_deploy_guide.html">🚀 배포 (Render·Turso)</a>
     </div>
     <p class="time-fixed">⏰ 세미나 시작 시간 기본값은 <strong>15:00</strong> 입니다. (확정 시 조정 가능)</p>
@@ -21,6 +21,7 @@
 
   <nav class="main-tabs">
     <button id="mt-schedule" class="main-tab active" type="button">📅 일정 확인</button>
+    <button id="mt-all" class="main-tab" type="button">🗓 전체 일정</button>
     <button id="mt-submit" class="main-tab" type="button">📤 과제 제출</button>
   </nav>
 
@@ -105,6 +106,21 @@
       <div id="submission-list" class="submission-list"></div>
     </section>
    </div><!-- /view-submit -->
+
+   <div id="view-all" hidden>
+    <section class="panel">
+      <h2 class="panel-title">🗓 전체 일정 — 세미나 1·2·3팀</h2>
+      <p class="modal-sub">
+        세 팀의 확정 일정을 한 달력에 모아 보여줍니다. 색상으로 팀을 구분합니다.
+      </p>
+      <p id="all-empty" class="empty-note" hidden>아직 확정된 일정이 없습니다.</p>
+      <div class="cal-head">
+        <span class="cal-month">2026. 06</span>
+      </div>
+      <div id="calendar-all" class="calendar"></div>
+      <p class="legend" id="all-legend"></p>
+    </section>
+   </div><!-- /view-all -->
   </main>
 
   <footer class="admin-footer">

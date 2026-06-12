@@ -15,9 +15,16 @@ const state = {
   seminarTime: '15:00',
   adminToken: localStorage.getItem('adminToken') || null,
   adminPick: null,     // 관리자가 확정하려고 고른 날짜
-  view: 'schedule',    // 'schedule' | 'submit'
-  submissions: []      // 과제 제출 현황 [{ name, dept, url, updatedAt }]
+  view: 'schedule',    // 'schedule' | 'all' | 'submit'
+  submissions: [],     // 과제 제출 현황 [{ name, dept, url, updatedAt }]
+  allConfirmed: []     // 전체 일정 뷰: 팀별 확정/투표 [{ team, idx, confirmed, votes }]
 };
+
+// 팀 → 색상 클래스(team1/team2/team3). 탭·확정일자 공통.
+function teamClassFor(teamId) {
+  const idx = state.teams.findIndex((t) => t.id === teamId);
+  return 'team' + ((Math.max(0, idx) % 3) + 1);
+}
 
 const MAX_CONFIRMED = 3;
 const isAdmin = () => !!state.adminToken;
@@ -78,9 +85,14 @@ const el = {
   loginCancel: document.getElementById('login-cancel'),
   loading: document.getElementById('loading'),
   mtSchedule: document.getElementById('mt-schedule'),
+  mtAll: document.getElementById('mt-all'),
   mtSubmit: document.getElementById('mt-submit'),
   viewSchedule: document.getElementById('view-schedule'),
   viewSubmit: document.getElementById('view-submit'),
+  viewAll: document.getElementById('view-all'),
+  calendarAll: document.getElementById('calendar-all'),
+  allLegend: document.getElementById('all-legend'),
+  allEmpty: document.getElementById('all-empty'),
   submitTeamName: document.getElementById('submit-team-name'),
   submissionSummary: document.getElementById('submission-summary'),
   submissionList: document.getElementById('submission-list')
@@ -119,7 +131,8 @@ function renderTabs() {
   el.tabs.innerHTML = '';
   for (const team of state.teams) {
     const b = document.createElement('button');
-    b.className = 'tab' + (team.id === state.currentTeam ? ' active' : '');
+    b.className =
+      'tab ' + teamClassFor(team.id) + (team.id === state.currentTeam ? ' active' : '');
     b.textContent = team.name;
     b.onclick = () => selectTeam(team.id);
     el.tabs.appendChild(b);
@@ -128,6 +141,9 @@ function renderTabs() {
 
 async function selectTeam(teamId) {
   state.currentTeam = teamId;
+  // 일정 뷰의 확정색을 선택 팀 색으로 전환
+  el.viewSchedule.classList.remove('team1', 'team2', 'team3');
+  el.viewSchedule.classList.add(teamClassFor(teamId));
   state.member = null;
   state.selected = new Set();
   state.completedOpen = false;
@@ -431,17 +447,137 @@ function switchView(view) {
   if (view === state.view) return;
   state.view = view;
   el.viewSchedule.hidden = view !== 'schedule';
+  el.viewAll.hidden = view !== 'all';
   el.viewSubmit.hidden = view !== 'submit';
   el.mtSchedule.classList.toggle('active', view === 'schedule');
+  el.mtAll.classList.toggle('active', view === 'all');
   el.mtSubmit.classList.toggle('active', view === 'submit');
+  // 팀 탭은 팀별 뷰(일정/과제)에서만 의미가 있음 → 전체 일정에서는 숨김
+  el.tabs.hidden = view === 'all';
   if (view === 'submit') {
     renderSubmissions();
     loadSubmissions();
   }
+  if (view === 'all') {
+    loadAllSchedule();
+  }
 }
 
 el.mtSchedule.onclick = () => switchView('schedule');
+el.mtAll.onclick = () => switchView('all');
 el.mtSubmit.onclick = () => switchView('submit');
+
+/* ---------------- 전체 일정 (1·2·3팀 합산) ---------------- */
+
+async function loadAllSchedule() {
+  setLoading(true);
+  try {
+    const results = await Promise.all(
+      state.teams.map((t) =>
+        fetch(`/api/votes?team=${encodeURIComponent(t.id)}`).then((r) => r.json())
+      )
+    );
+    state.allConfirmed = state.teams.map((t, i) => ({
+      team: t,
+      idx: i,
+      confirmed: Array.isArray(results[i].confirmed) ? results[i].confirmed : [],
+      votes: results[i].votes || {}
+    }));
+    renderAllCalendar();
+  } catch (err) {
+    console.error(err);
+    el.calendarAll.innerHTML = '';
+    el.allEmpty.hidden = false;
+    el.allEmpty.textContent = '전체 일정을 불러오지 못했습니다.';
+  } finally {
+    setLoading(false);
+  }
+}
+
+const shortTeam = (name) => name.replace(/^세미나\s*/, '');
+
+function renderAllCalendar() {
+  // 날짜별로 어느 팀이 확정했는지 모으기
+  const byDate = {}; // ds -> [{ idx, name, time, memo, count }]
+  let total = 0;
+  for (const entry of state.allConfirmed) {
+    for (const c of entry.confirmed) {
+      total++;
+      (byDate[c.date] ??= []).push({
+        idx: entry.idx,
+        name: entry.team.name,
+        time: c.time || state.seminarTime,
+        memo: c.memo || '',
+        count: (entry.votes[c.date] || []).length
+      });
+    }
+  }
+  el.allEmpty.hidden = total > 0;
+
+  // 범례 (팀별 색)
+  el.allLegend.innerHTML = state.teams
+    .map((t, i) => {
+      const cls = 'team' + ((i % 3) + 1);
+      return `<span class="lg-team"><span class="lg-dot ${cls}"></span>${t.name}</span>`;
+    })
+    .join('');
+
+  // 달력 그리기 (읽기 전용)
+  el.calendarAll.innerHTML = '';
+  DOW.forEach((d, i) => {
+    const h = document.createElement('div');
+    h.className = 'dow' + (i === 0 ? ' sun' : i === 6 ? ' sat' : '');
+    h.textContent = d;
+    el.calendarAll.appendChild(h);
+  });
+
+  const firstDow = new Date(YEAR, MONTH - 1, 1).getDay();
+  const daysInMonth = new Date(YEAR, MONTH, 0).getDate();
+
+  for (let i = 0; i < firstDow; i++) {
+    const e = document.createElement('div');
+    e.className = 'day empty';
+    el.calendarAll.appendChild(e);
+  }
+
+  for (let day = 1; day <= daysInMonth; day++) {
+    const ds = dateStr(day);
+    const dow = new Date(YEAR, MONTH - 1, day).getDay();
+    const teamsOnDay = byDate[ds] || [];
+
+    const cell = document.createElement('div');
+    cell.className = 'day' + (dow === 0 ? ' sun' : dow === 6 ? ' sat' : '');
+    cell.style.cursor = 'default';
+    if (teamsOnDay.length) cell.classList.add('all-confirmed');
+    cell.innerHTML = `<span>${day}</span>`;
+
+    if (TODAY === ds) {
+      cell.classList.add('today');
+      const t = document.createElement('span');
+      t.className = 'today-tag';
+      t.textContent = '오늘';
+      cell.appendChild(t);
+    }
+
+    if (teamsOnDay.length) {
+      const chips = document.createElement('div');
+      chips.className = 'team-chips';
+      for (const info of teamsOnDay) {
+        const chip = document.createElement('span');
+        chip.className = 'team-chip team' + ((info.idx % 3) + 1);
+        const cnt = info.count > 0 ? ` 👥${info.count}` : '';
+        chip.textContent = `${shortTeam(info.name)} ${info.time}${cnt}`;
+        chip.title = info.memo
+          ? `${info.name} · ${info.time}${info.memo ? ` · ${info.memo}` : ''}`
+          : `${info.name} · ${info.time}`;
+        chips.appendChild(chip);
+      }
+      cell.appendChild(chips);
+    }
+
+    el.calendarAll.appendChild(cell);
+  }
+}
 
 /* ---------------- 과제 제출 ---------------- */
 

@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Git 사용 방법 - 주요 명령어</title>
+  <style>
+    :root {
+      --bg: #f6f8fb;
+      --card: #ffffff;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --primary: #2563eb;
+      --primary-soft: #e8f0ff;
+      --border: #e5e7eb;
+      --code-bg: #111827;
+      --code-text: #f9fafb;
+      --warning-bg: #fff7ed;
+      --warning-border: #fdba74;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans KR", Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.65;
+    }
+
+    .container {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 48px 24px 72px;
+    }
+
+    .hero {
+      background: linear-gradient(135deg, #f97316, #ea580c);
+      color: #ffffff;
+      padding: 42px 40px;
+      border-radius: 24px;
+      box-shadow: 0 16px 40px rgba(234, 88, 12, 0.25);
+      margin-bottom: 32px;
+    }
+
+    .hero .eyebrow {
+      font-size: 15px;
+      font-weight: 700;
+      opacity: 0.9;
+      margin-bottom: 10px;
+    }
+
+    .hero h1 {
+      font-size: 38px;
+      line-height: 1.2;
+      margin: 0 0 16px;
+      letter-spacing: -0.04em;
+    }
+
+    .hero p {
+      font-size: 18px;
+      margin: 0;
+      opacity: 0.92;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 32px;
+      margin-bottom: 24px;
+      box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+    }
+
+    .section-title {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+
+    .badge {
+      flex: 0 0 auto;
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      background: var(--primary-soft);
+      color: var(--primary);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+    }
+
+    h2 {
+      font-size: 25px;
+      margin: 0;
+      letter-spacing: -0.03em;
+    }
+
+    h3 {
+      font-size: 19px;
+      margin: 28px 0 10px;
+      letter-spacing: -0.02em;
+    }
+
+    p {
+      margin: 8px 0 14px;
+    }
+
+    ol, ul {
+      padding-left: 22px;
+      margin-top: 10px;
+      margin-bottom: 18px;
+    }
+
+    li {
+      margin: 6px 0;
+    }
+
+    a {
+      color: var(--primary);
+      font-weight: 700;
+      text-decoration: none;
+    }
+
+    a:hover {
+      text-decoration: underline;
+    }
+
+    .command-group {
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      overflow: hidden;
+      margin: 16px 0;
+    }
+
+    .command-item {
+      padding: 20px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .command-item:last-child {
+      border-bottom: none;
+    }
+
+    .command-label {
+      font-weight: 800;
+      margin-bottom: 8px;
+      color: #111827;
+    }
+
+    pre {
+      margin: 10px 0;
+      padding: 16px 18px;
+      background: var(--code-bg);
+      color: var(--code-text);
+      border-radius: 12px;
+      overflow-x: auto;
+      font-size: 15px;
+      line-height: 1.5;
+    }
+
+    code {
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    }
+
+    .note {
+      background: var(--warning-bg);
+      border: 1px solid var(--warning-border);
+      border-radius: 14px;
+      padding: 16px 18px;
+      margin-top: 16px;
+    }
+
+    .note strong {
+      display: block;
+      margin-bottom: 6px;
+    }
+
+    .footer {
+      color: var(--muted);
+      text-align: center;
+      font-size: 14px;
+      margin-top: 32px;
+    }
+
+    .back-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 20px;
+      padding: 9px 16px;
+      background: #ffffff;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .back-link:hover {
+      text-decoration: none;
+      border-color: var(--primary);
+      color: var(--primary);
+    }
+
+    @media (max-width: 720px) {
+      .container {
+        padding: 28px 16px 48px;
+      }
+
+      .hero {
+        padding: 30px 24px;
+      }
+
+      .hero h1 {
+        font-size: 30px;
+      }
+
+      .card {
+        padding: 24px;
+      }
+    }
+
+    @media print {
+      body {
+        background: #ffffff;
+      }
+
+      .container {
+        max-width: none;
+        padding: 0;
+      }
+
+      .hero, .card {
+        box-shadow: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="container">
+    <a href="/" class="back-link">← 메인으로 돌아가기</a>
+    <section class="hero">
+      <div class="eyebrow">실습 준비</div>
+      <h1>Git 사용 방법</h1>
+      <p>
+        실습에서 자주 쓰는 Git 주요 명령어를 업로드와 다운로드 흐름으로 정리한 자료입니다.
+      </p>
+    </section>
+
+    <section class="card">
+      <div class="section-title">
+        <span class="badge">1</span>
+        <h2>Git 주요 명령어</h2>
+      </div>
+
+      <p>
+        Git은 크게 <strong>업로드</strong>와 <strong>다운로드</strong> 흐름으로 이해하면 됩니다.
+      </p>
+
+      <h3>업로드</h3>
+      <p>작성한 코드를 Git 저장소에 저장하고 서버에 업로드할 때 사용합니다.</p>
+
+      <div class="command-group">
+        <div class="command-item">
+          <div class="command-label">파일 추가</div>
+          <pre><code>git add .</code></pre>
+          <p>현재 폴더의 변경된 파일을 Git에 추가합니다.</p>
+        </div>
+
+        <div class="command-item">
+          <div class="command-label">저장</div>
+          <pre><code>git commit -m "작업 내용 작성"</code></pre>
+          <p>추가된 파일을 하나의 작업 단위로 저장합니다.</p>
+          <pre><code>git commit -m "회원가입 기능 추가"</code></pre>
+        </div>
+
+        <div class="command-item">
+          <div class="command-label">서버에 업로드</div>
+          <pre><code>git push</code></pre>
+          <p>내 PC에 저장한 Git 변경사항을 원격 저장소 서버에 업로드합니다.</p>
+        </div>
+      </div>
+
+      <h3>다운로드</h3>
+      <p>서버에 있는 프로젝트를 내 PC로 다운로드하거나 최신 상태로 갱신할 때 사용합니다.</p>
+
+      <div class="command-group">
+        <div class="command-item">
+          <div class="command-label">프로젝트 다운로드</div>
+          <pre><code>git clone 저장소주소</code></pre>
+          <p>원격 저장소에 있는 프로젝트를 내 PC로 복사합니다.</p>
+          <pre><code>git clone https://github.com/example/project.git</code></pre>
+          <p>
+            여기서 <strong>“저장소주소”</strong>로 무엇을 넣어야 하는지는
+            아래 <strong>2번 — clone 주소 복사하기</strong>에서 자세히 설명합니다.
+          </p>
+        </div>
+
+        <div class="command-item">
+          <div class="command-label">최신 내용 가져오기</div>
+          <pre><code>git pull</code></pre>
+          <p>이미 다운로드한 프로젝트에서 서버의 최신 변경사항을 다시 가져옵니다.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="section-title">
+        <span class="badge">2</span>
+        <h2>clone 주소 복사하기 (GitHub)</h2>
+      </div>
+
+      <p>
+        <code>git clone</code> 뒤에 넣는 주소는 <strong>웹 브라우저 주소창의 URL이 아니라</strong>,
+        GitHub 저장소 페이지의 <strong>[Code] 버튼</strong> 안에 있는 <strong>저장소 주소(.git URL)</strong> 입니다.
+        아래 순서로 복사하세요.
+      </p>
+
+      <h3>① GitHub 저장소 페이지 열기</h3>
+      <p>
+        받아올 프로젝트의 GitHub 페이지로 이동합니다.
+        주소는 보통 <code>https://github.com/사용자명/프로젝트명</code> 형태입니다.
+      </p>
+
+      <h3>② 초록색 [Code] 버튼 클릭</h3>
+      <p>
+        파일 목록 위 오른쪽에 있는 초록색 <strong>&lt;&gt; Code</strong> 버튼을 누릅니다.
+        작은 창이 열리면 <strong>HTTPS</strong> 탭이 선택되어 있는지 확인합니다.
+        (SSH / GitHub CLI 가 아니라 <strong>HTTPS</strong> 를 사용하세요.)
+      </p>
+
+      <h3>③ 주소 복사</h3>
+      <p>
+        칸에 표시된 주소 오른쪽의 <strong>복사 아이콘(📋)</strong> 을 눌러 주소를 복사합니다.
+        주소는 아래처럼 <strong><code>.git</code> 으로 끝나는 형태</strong>입니다.
+      </p>
+      <pre><code>https://github.com/사용자명/프로젝트명.git</code></pre>
+
+      <h3>④ 터미널에서 clone</h3>
+      <p>
+        VS Code 터미널에서 <code>git clone</code> 뒤에 복사한 주소를 붙여넣고 실행합니다.
+        (붙여넣기: <code>Ctrl</code> + <code>V</code>)
+      </p>
+      <pre><code>git clone https://github.com/사용자명/프로젝트명.git</code></pre>
+      <p>
+        실행하면 <strong>현재 터미널이 위치한 폴더 안에</strong> 프로젝트명과 같은 이름의 폴더가 새로 생기고,
+        그 안에 프로젝트 파일이 모두 다운로드됩니다.
+      </p>
+
+      <div class="note">
+        <strong>다운로드 위치를 정하고 싶다면</strong>
+        <p>
+          clone 은 <strong>지금 터미널이 있는 폴더</strong>에 받습니다.
+          원하는 폴더로 먼저 이동한 뒤 clone 하세요. (<code>cd</code> = 폴더 이동)
+        </p>
+        <pre><code>cd Desktop
+git clone https://github.com/사용자명/프로젝트명.git</code></pre>
+      </div>
+
+      <div class="note">
+        <strong>받은 프로젝트 폴더로 들어가기</strong>
+        <p>clone 후에는 만들어진 폴더 안으로 이동해야 작업할 수 있습니다.</p>
+        <pre><code>cd 프로젝트명</code></pre>
+        <p>
+          VS Code 라면 <strong>File &gt; Open Folder</strong> 로 그 폴더를 열어도 됩니다.
+        </p>
+      </div>
+
+      <div class="note">
+        <strong>주소를 못 찾겠다면 (가장 간단한 방법)</strong>
+        <p>
+          GitHub 저장소 페이지의 <strong>브라우저 주소창 URL 끝에 <code>.git</code> 만 붙여도</strong> 대부분 동작합니다.
+          예: 페이지가 <code>https://github.com/사용자명/프로젝트명</code> 이면
+          <code>https://github.com/사용자명/프로젝트명.git</code> 으로 clone.
+        </p>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="section-title">
+        <span class="badge">3</span>
+        <h2>전체 작업 흐름 한눈에</h2>
+      </div>
+
+      <p>실습에서는 보통 아래 순서로 진행합니다.</p>
+      <ol>
+        <li><strong>처음 한 번</strong> — 프로젝트를 내 PC로 받기: <code>git clone 주소</code></li>
+        <li>받은 폴더로 이동: <code>cd 프로젝트명</code></li>
+        <li>코드 수정 작업…</li>
+        <li>변경한 파일 담기: <code>git add .</code></li>
+        <li>작업 내용 저장: <code>git commit -m "내용"</code></li>
+        <li>서버에 업로드: <code>git push</code></li>
+      </ol>
+      <p>
+        이미 받아둔 프로젝트라면 <code>clone</code> 대신, 작업 시작 전에
+        <code>git pull</code> 로 최신 상태를 먼저 받아오세요.
+      </p>
+    </section>
+
+    <div class="footer">
+      Git 사용 방법 실습 준비 자료
+    </div>
+  </main>
+</body>
+</html>
