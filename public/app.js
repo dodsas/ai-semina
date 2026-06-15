@@ -15,7 +15,7 @@ const state = {
   seminarTime: '15:00',
   adminToken: localStorage.getItem('adminToken') || null,
   adminPick: null,     // 관리자가 확정하려고 고른 날짜
-  view: 'schedule',    // 'schedule' | 'all' | 'submit'
+  view: 'submit',      // 'schedule' | 'all' | 'submit' (기본: 과제 제출)
   submissions: [],     // 과제 제출 현황 [{ name, dept, url, updatedAt }]
   allConfirmed: []     // 전체 일정 뷰: 팀별 확정/투표 [{ team, idx, confirmed, votes }]
 };

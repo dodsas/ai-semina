@@ -78,6 +78,7 @@ header .sub { margin: 6px 0 0; color: var(--muted); font-size: 14px; }
   font-weight: 700;
   cursor: pointer;
   transition: all .15s;
+  white-space: nowrap;
 }
 .main-tab:hover { color: var(--primary); }
 .main-tab.active {
@@ -752,6 +753,10 @@ main {
 }
 
 @media (max-width: 560px) {
+  /* 큰 탭: 좁은 화면에서 한 줄에 균등 배치 (글자 줄바꿈 방지) */
+  .main-tabs { width: 100%; max-width: 100%; gap: 4px; padding: 4px; }
+  .main-tab { flex: 1 1 0; min-width: 0; padding: 9px 6px; font-size: 13px; text-align: center; }
+
   .sub-row { flex-wrap: wrap; }
   .sub-head { width: 100%; min-width: 0; }
   .sub-input,

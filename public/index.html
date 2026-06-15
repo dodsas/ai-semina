@@ -9,26 +9,26 @@
 <body>
   <header>
     <h1>세미나 일정잡으려고 30분만에 만든 웹서비스</h1>
-    <p class="sub">팀을 선택하고 본인 이름을 누른 뒤, 가능한 날짜를 골라 투표하세요.</p>
+<!--    <p class="sub">팀을 선택하고 본인 이름을 누른 뒤, 가능한 날짜를 골라 투표하세요.</p>-->
     <div class="guide-links">
       <a class="guide-link" href="web_basic_seminar_osi_after_internet.html">🌐 웹 기초 세미나</a>
       <a class="guide-link" href="git_vscode_practice_guide.html">🛠 사전준비 툴 설치 (Git·VS Code·AI)</a>
       <a class="guide-link" href="git_usage_guide.html">📘 Git 사용 방법</a>
       <a class="guide-link" href="render_turso_deploy_guide.html">🚀 배포 (Render·Turso)</a>
     </div>
-    <p class="time-fixed">⏰ 세미나 시작 시간 기본값은 <strong>15:00</strong> 입니다. (확정 시 조정 가능)</p>
+    <p class="time-fixed">⏰ 세미나 시작 시간은 <strong>15:00</strong> 입니다. (확정 시 조정 가능)</p>
   </header>
 
   <nav class="main-tabs">
-    <button id="mt-schedule" class="main-tab active" type="button">📅 일정 확인</button>
+    <button id="mt-submit" class="main-tab active" type="button">📤 과제 제출</button>
     <button id="mt-all" class="main-tab" type="button">🗓 전체 일정</button>
-    <button id="mt-submit" class="main-tab" type="button">📤 과제 제출</button>
+    <button id="mt-schedule" class="main-tab" type="button">📅 일정 확인</button>
   </nav>
 
   <nav id="tabs" class="tabs"></nav>
 
   <main>
-   <div id="view-schedule">
+   <div id="view-schedule" hidden>
     <section id="member-panel" class="panel">
       <h2 class="panel-title">1. 본인 선택</h2>
       <div id="members" class="members"></div>
@@ -94,7 +94,7 @@
     </section>
    </div><!-- /view-schedule -->
 
-   <div id="view-submit" hidden>
+   <div id="view-submit">
     <section class="panel">
       <h2 class="panel-title">📤 과제 제출 — <span id="submit-team-name"></span></h2>
       <p class="modal-sub">
