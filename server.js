@@ -361,10 +361,58 @@ app.post('/api/votes', async (req, res) => {
   }
 });
 
+// ---- Render 무료 티어 keep-alive ----
+// 제출된 모든 사이트(+서버 자신)에 10분마다 GET 을 보내 슬립을 방지합니다.
+// 서버 자신도 핑해야 본 서버가 잠들지 않아 인터벌이 계속 동작합니다.
+const KEEPALIVE_MS = 10 * 60 * 1000; // 10분
+const KEEPALIVE_ENABLED =
+  process.env.NODE_ENV === 'production' || process.env.KEEPALIVE === '1';
+
+async function pingUrl(url) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 15000);
+  try {
+    const res = await fetch(url, { method: 'GET', redirect: 'follow', signal: ctrl.signal });
+    return res.status;
+  } catch (err) {
+    return `ERR(${err.name || 'fetch'})`;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function keepAliveTick() {
+  try {
+    const targets = new Set();
+    // 서버 자신을 깨워 인터벌이 계속 돌게 함 (Render 가 자동 주입하는 외부 URL)
+    if (process.env.RENDER_EXTERNAL_URL) targets.add(process.env.RENDER_EXTERNAL_URL);
+    const r = await db.execute("SELECT DISTINCT url FROM submissions WHERE url <> ''");
+    for (const row of r.rows) if (row.url) targets.add(row.url);
+    if (!targets.size) return;
+    const list = [...targets];
+    const results = await Promise.all(list.map(pingUrl));
+    const ok = results.filter((s) => typeof s === 'number' && s < 400).length;
+    console.log(`[keepalive] ${new Date().toISOString()} · ${list.length}곳 ping · 정상 ${ok}`);
+  } catch (err) {
+    console.error('[keepalive] tick 실패:', err);
+  }
+}
+
+function startKeepAlive() {
+  if (!KEEPALIVE_ENABLED) {
+    console.log('[keepalive] 비활성 (운영 모드 아님). 로컬 테스트는 KEEPALIVE=1 로 실행');
+    return;
+  }
+  console.log('[keepalive] 활성 · 10분 주기로 제출 사이트 + 서버 자신 ping');
+  setTimeout(keepAliveTick, 30 * 1000); // 기동 30초 후 첫 실행
+  setInterval(keepAliveTick, KEEPALIVE_MS);
+}
+
 initDb()
   .then(() => {
     app.listen(PORT, () => {
       console.log(`[server] http://localhost:${PORT} 에서 실행 중`);
+      startKeepAlive();
     });
   })
   .catch((err) => {
