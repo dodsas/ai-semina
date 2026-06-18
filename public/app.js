@@ -610,8 +610,26 @@ function renderSubmissions() {
   }
   const done = members.filter((m) => m.url).length;
   el.submissionSummary.textContent = `제출 완료 ${done} / 전체 ${members.length}명`;
+
+  // 제출한 사람을 상위에 노출 (먼저 제출한 순). 시간 정보가 없으면 뒤로 보낸 뒤 이름순.
+  const ordered = members
+    .map((m, i) => ({ m, i }))
+    .sort((a, b) => {
+      const aDone = !!a.m.url, bDone = !!b.m.url;
+      if (aDone !== bDone) return aDone ? -1 : 1; // 제출자 우선
+      if (aDone) {
+        const at = a.m.updatedAt, bt = b.m.updatedAt;
+        if (at && bt) return at < bt ? -1 : at > bt ? 1 : a.i - b.i; // 먼저 제출한 순
+        if (at) return -1;          // 시간 있는 쪽 먼저
+        if (bt) return 1;
+        return a.i - b.i;           // 둘 다 시간 없으면 기존 순서 유지
+      }
+      return a.i - b.i;             // 미제출은 명단 순서 유지
+    })
+    .map((x) => x.m);
+
   el.submissionList.innerHTML = '';
-  for (const m of members) el.submissionList.appendChild(submissionRow(m));
+  for (const m of ordered) el.submissionList.appendChild(submissionRow(m));
 }
 
 function submissionRow(m) {
