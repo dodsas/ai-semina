@@ -1,5 +1,9 @@
 import { createClient } from '@libsql/client';
+import crypto from 'node:crypto';
 import 'dotenv/config';
+
+// 과제(제출)별 고유키 생성기
+export const newSubmissionId = () => 's_' + crypto.randomBytes(12).toString('hex');
 
 // 운영(Render, NODE_ENV=production): Turso 원격 DB
 // 로컬 개발: local.db (순수 로컬 SQLite) — 운영 데이터에 전혀 영향 없음
@@ -100,5 +104,51 @@ export async function initDb() {
     await db.execute("ALTER TABLE submissions ADD COLUMN title TEXT NOT NULL DEFAULT ''");
     console.log('[DB] submissions.title 컬럼 추가');
   }
+  // 과제별 고유키(id) 컬럼 추가 + 유니크 인덱스
+  if (!subCols.includes('id')) {
+    await db.execute("ALTER TABLE submissions ADD COLUMN id TEXT");
+    await db.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_submissions_id ON submissions (id)');
+    console.log('[DB] submissions.id(고유키) 컬럼 추가');
+  }
+  // 사이트 요약 컬럼 (더블클릭 수정 가능)
+  if (!subCols.includes('summary')) {
+    await db.execute("ALTER TABLE submissions ADD COLUMN summary TEXT NOT NULL DEFAULT ''");
+    console.log('[DB] submissions.summary 컬럼 추가');
+  }
+  // 사이트 카테고리 컬럼
+  if (!subCols.includes('category')) {
+    await db.execute("ALTER TABLE submissions ADD COLUMN category TEXT NOT NULL DEFAULT ''");
+    console.log('[DB] submissions.category 컬럼 추가');
+  }
+  // 고유키 누락 행 백필 (매 기동 시 보강 — 구버전으로 들어온 행 대비)
+  const missing = await db.execute("SELECT team, member FROM submissions WHERE id IS NULL OR id = ''");
+  for (const row of missing.rows) {
+    await db.execute({
+      sql: 'UPDATE submissions SET id = ? WHERE team = ? AND member = ?',
+      args: [newSubmissionId(), row.team, row.member]
+    });
+  }
+  if (missing.rows.length) console.log(`[DB] 고유키 누락 ${missing.rows.length}건 백필`);
+
+  // 사이트 아이콘 캐시 (하루 1회 배치로 갱신, 바이트를 data URI 로 저장)
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS site_icons (
+      url        TEXT PRIMARY KEY,
+      icon_src   TEXT NOT NULL DEFAULT '',
+      icon_data  TEXT NOT NULL DEFAULT '',
+      fetched_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `);
+
+  // 배치 실행 기록 (name + 실행일(KST) 기준, 하루 1회 보장)
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS batch_runs (
+      name     TEXT NOT NULL,
+      run_date TEXT NOT NULL,
+      ran_at   TEXT NOT NULL DEFAULT (datetime('now')),
+      detail   TEXT NOT NULL DEFAULT '',
+      PRIMARY KEY (name, run_date)
+    )
+  `);
   console.log('[DB] 연결 및 테이블 준비 완료');
 }

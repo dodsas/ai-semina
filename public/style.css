@@ -348,6 +348,24 @@ main {
 .time-fixed strong { color: #8a4f00; }
 
 /* ---- 가이드 링크 ---- */
+/* 상단 홈(사이트 모음) 복귀 링크 */
+.home-link-row { margin-bottom: 6px; }
+.home-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: none;
+  color: var(--primary-d);
+  background: #eef1fb;
+  border: 1px solid #d7def8;
+  border-radius: 999px;
+  padding: 6px 14px;
+  transition: all .12s;
+}
+.home-link:hover { background: var(--primary); color: #fff; border-color: var(--primary); }
+
 .guide-links {
   display: flex;
   gap: 10px;
