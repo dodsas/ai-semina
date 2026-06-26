@@ -21,6 +21,18 @@ const emojiFor = (cat) => (CATEGORIES.find((c) => c.key === cat) || {}).emoji ||
 let allSites = [];
 let currentFilter = 'all';
 
+// 요청 모달 상태
+const reqModal = document.getElementById('req-modal');
+const reqTitle = document.getElementById('req-title');
+const reqList = document.getElementById('req-list');
+const reqContent = document.getElementById('req-content');
+const reqName = document.getElementById('req-name');
+const reqSubmit = document.getElementById('req-submit');
+const reqStatus = document.getElementById('req-status');
+const reqClose = document.getElementById('req-close');
+let reqSid = null;
+let reqDirty = false; // 모달에서 변경이 있었으면 닫을 때 목록 새로고침
+
 // 'YYYY-MM-DD HH:MM:SS'(UTC) → 한국시간 표기
 function fmtKst(s) {
   if (!s) return '';
@@ -60,6 +72,26 @@ function faviconCandidates(site) {
   return list;
 }
 
+// 링크 클릭수 +1 기록 + 화면 카운트 즉시 반영
+function countClick(cardEl, site) {
+  if (cardEl.classList.contains('editing')) return; // 편집 중에는 카운트하지 않음
+  if (!site.id) return;
+  site.clicks = Number(site.clicks || 0) + 1;
+  const b = cardEl.querySelector('.clicks b');
+  if (b) b.textContent = site.clicks;
+  const payload = JSON.stringify({ id: site.id });
+  try {
+    // 새 탭 이동과 무관하게 안전하게 전송
+    if (navigator.sendBeacon) {
+      navigator.sendBeacon('/api/submissions/click', new Blob([payload], { type: 'application/json' }));
+    } else {
+      fetch('/api/submissions/click', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: payload, keepalive: true
+      });
+    }
+  } catch (_) { /* 무시 */ }
+}
+
 function card(site) {
   const a = document.createElement('a');
   a.className = 'site-card';
@@ -68,7 +100,6 @@ function card(site) {
   a.rel = 'noopener noreferrer';
 
   const title = site.title || prettyHost(site.url);
-  const num = String(site._no).padStart(2, '0');
   const cat = catOf(site);
 
   const hasSummary = !!(site.summary && site.summary.trim());
@@ -79,7 +110,7 @@ function card(site) {
         `<span class="fav-fallback">🌐</span>` +
       `</span>` +
       `<span class="cat-badge">${emojiFor(cat)} ${escapeHtml(cat)}</span>` +
-      `<span class="num">No.${num}</span>` +
+      (site.updated ? `<span class="update-badge" title="최근 업데이트 감지됨">UPDATED</span>` : '') +
     `</div>` +
     `<h3 class="title">${escapeHtml(title)}</h3>` +
     `<div class="summary${hasSummary ? '' : ' empty'}" title="더블클릭하여 요약·카테고리 수정">` +
@@ -90,8 +121,20 @@ function card(site) {
         `<span class="name">${escapeHtml(site.member || '익명')}</span>` +
         (site.dept ? `<span class="dept">${escapeHtml(site.dept)}</span>` : '') +
       `</span>` +
+      `<button class="req-btn" type="button" title="요청 보기/보내기">💬${site.reqOpen ? ` <span class="rb-n">${site.reqOpen}</span>` : ''}</button>` +
       `<span class="go">열기 →</span>` +
     `</div>`;
+
+  // 요청 버튼: 카드 이동 막고 요청 모달 열기
+  const reqBtn = a.querySelector('.req-btn');
+  reqBtn.addEventListener('click', (e) => {
+    e.preventDefault(); e.stopPropagation();
+    if (!site.id) { alert('이 항목은 아직 요청을 받을 수 없습니다.'); return; }
+    openRequests(site);
+  });
+
+  // 카드(링크) 클릭 시 클릭수 +1 기록 (새 탭이 열리므로 현재 페이지는 유지됨)
+  a.addEventListener('click', () => countClick(a, site));
 
   // 요약: 더블클릭하여 인라인 편집 (카드 링크 이동은 막음)
   const summaryEl = a.querySelector('.summary');
@@ -123,6 +166,13 @@ function card(site) {
 function startSummaryEdit(cardEl, summaryEl, site) {
   if (cardEl.querySelector('.summary-edit-box')) return; // 이미 편집 중
 
+  // 편집 중에는 카드(링크)의 사이트 이동을 비활성화 (href 임시 제거)
+  cardEl.classList.add('editing');
+  if (cardEl.hasAttribute('href')) {
+    cardEl.dataset.href = cardEl.getAttribute('href');
+    cardEl.removeAttribute('href');
+  }
+
   const box = document.createElement('div');
   box.className = 'summary-edit-box';
   ['click', 'dblclick', 'mousedown'].forEach((ev) =>
@@ -143,7 +193,19 @@ function startSummaryEdit(cardEl, summaryEl, site) {
     `<option value="">(미분류)</option>` +
     opts.map((k) => `<option value="${escapeHtml(k)}"${k === cur ? ' selected' : ''}>${emojiFor(k)} ${escapeHtml(k)}</option>`).join('');
 
-  box.append(ta, sel);
+  const actions = document.createElement('div');
+  actions.className = 'edit-actions';
+  const saveBtn = document.createElement('button');
+  saveBtn.type = 'button';
+  saveBtn.className = 'edit-save';
+  saveBtn.textContent = '저장';
+  const cancelBtn = document.createElement('button');
+  cancelBtn.type = 'button';
+  cancelBtn.className = 'edit-cancel';
+  cancelBtn.textContent = '취소';
+  actions.append(sel, cancelBtn, saveBtn);
+
+  box.append(ta, actions);
   summaryEl.replaceWith(box);
   ta.focus();
   ta.setSelectionRange(ta.value.length, ta.value.length);
@@ -152,6 +214,14 @@ function startSummaryEdit(cardEl, summaryEl, site) {
   const finish = async (save) => {
     if (done) return;
     done = true;
+
+    // 편집 종료 → 링크 이동 복원
+    cardEl.classList.remove('editing');
+    if (cardEl.dataset.href) {
+      cardEl.setAttribute('href', cardEl.dataset.href);
+      delete cardEl.dataset.href;
+    }
+
     const nextSummary = ta.value.trim();
     const nextCat = sel.value;
     const summaryChanged = save && nextSummary !== (site.summary || '');
@@ -193,14 +263,13 @@ function startSummaryEdit(cardEl, summaryEl, site) {
     box.replaceWith(newEl);
   };
 
-  // textarea 에서 저장/취소
+  // preventDefault 로 카드(링크) 기본 이동 차단 (href 복원 시점과 무관하게)
+  saveBtn.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); finish(true); });
+  cancelBtn.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); finish(false); });
+  // 단축키: Ctrl/⌘+Enter 저장, Esc 취소
   ta.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); finish(true); }
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); finish(true); }
     else if (e.key === 'Escape') { e.preventDefault(); finish(false); }
-  });
-  // 편집 박스 밖을 클릭하면 저장
-  box.addEventListener('focusout', () => {
-    setTimeout(() => { if (!box.contains(document.activeElement)) finish(true); }, 0);
   });
 }
 
@@ -243,13 +312,130 @@ function renderGrid() {
   for (const s of list) grid.appendChild(card(s));
 }
 
+/* ---------------- 요청(피드백) 모달 ---------------- */
+
+function openRequests(site) {
+  reqSid = site.id;
+  reqDirty = false;
+  reqTitle.textContent = `💬 요청 — ${site.title || site.url}`;
+  reqContent.value = '';
+  reqName.value = '';
+  reqStatus.textContent = '';
+  reqStatus.className = 'req-status';
+  reqList.innerHTML = '<p class="req-empty">불러오는 중…</p>';
+  reqModal.hidden = false;
+  loadRequests();
+}
+
+function closeRequests() {
+  reqModal.hidden = true;
+  reqSid = null;
+  if (reqDirty) load(); // 카드의 요청 카운트 갱신
+}
+
+async function loadRequests() {
+  const sid = reqSid;
+  try {
+    const res = await fetch(`/api/requests?sid=${encodeURIComponent(sid)}`);
+    if (!res.ok) throw new Error('load failed');
+    const data = await res.json();
+    if (reqSid !== sid) return;
+    renderRequests(data.requests || []);
+  } catch (err) {
+    console.error(err);
+    reqList.innerHTML = '<p class="req-empty">목록을 불러오지 못했습니다.</p>';
+  }
+}
+
+function renderRequests(items) {
+  if (!items.length) {
+    reqList.innerHTML = '<p class="req-empty">아직 등록된 요청이 없어요. 첫 요청을 남겨보세요.</p>';
+    return;
+  }
+  reqList.innerHTML = '';
+  for (const it of items) {
+    const row = document.createElement('div');
+    row.className = 'req-item' + (it.done ? ' done' : '');
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.checked = it.done;
+    cb.title = '적용 완료 체크';
+    cb.addEventListener('change', () => toggleRequestDone(it.id, cb.checked, row));
+    const body = document.createElement('div');
+    body.className = 'ri-body';
+    const meta = [it.requester || '익명', fmtKst(it.createdAt)].filter(Boolean).join(' · ');
+    body.innerHTML =
+      `<div class="ri-text">${escapeHtml(it.content)}</div>` +
+      `<div class="ri-meta">${escapeHtml(meta)}</div>`;
+    row.append(cb, body);
+    reqList.appendChild(row);
+  }
+}
+
+async function toggleRequestDone(id, done, row) {
+  try {
+    const res = await fetch('/api/requests/done', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, done })
+    });
+    if (!res.ok) throw new Error('toggle failed');
+    row.classList.toggle('done', done);
+    reqDirty = true;
+  } catch (err) {
+    console.error(err);
+    alert('상태 변경에 실패했습니다.');
+    loadRequests();
+  }
+}
+
+async function submitRequest() {
+  const content = reqContent.value.trim();
+  if (!content) { reqContent.focus(); return; }
+  reqSubmit.disabled = true;
+  reqStatus.textContent = '전송 중…';
+  reqStatus.className = 'req-status';
+  try {
+    const res = await fetch('/api/requests', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sid: reqSid, content, requester: reqName.value.trim() })
+    });
+    if (!res.ok) throw new Error('submit failed');
+    const data = await res.json();
+    reqContent.value = '';
+    reqDirty = true;
+    if (data.emailed) {
+      reqStatus.textContent = '✅ 요청 등록 + 담당자 메일 발송 완료';
+      reqStatus.className = 'req-status ok';
+    } else if (!data.hasEmail) {
+      reqStatus.textContent = '✅ 요청 등록됨 (담당자 이메일 미등록 — 메일은 발송되지 않음)';
+      reqStatus.className = 'req-status warn';
+    } else {
+      reqStatus.textContent = '✅ 요청 등록됨 (메일 발송은 실패 — 목록에는 표시됩니다)';
+      reqStatus.className = 'req-status warn';
+    }
+    loadRequests();
+  } catch (err) {
+    console.error(err);
+    reqStatus.textContent = '요청 전송에 실패했습니다. 다시 시도해 주세요.';
+    reqStatus.className = 'req-status warn';
+  } finally {
+    reqSubmit.disabled = false;
+  }
+}
+
+reqClose.addEventListener('click', closeRequests);
+reqModal.addEventListener('click', (e) => { if (e.target === reqModal) closeRequests(); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !reqModal.hidden) closeRequests(); });
+reqSubmit.addEventListener('click', submitRequest);
+
 async function load() {
   try {
     const res = await fetch('/api/all-submissions');
     if (!res.ok) throw new Error('load failed');
     const data = await res.json();
     const sites = data.sites || [];
-    sites.forEach((s, i) => { s._no = i + 1; }); // 제출 순 고정 번호
 
     countEl.innerHTML = `총 <b>${sites.length}</b>개 사이트`;
     updatedEl.textContent = data.batchUpdatedAt

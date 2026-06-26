@@ -96,6 +96,21 @@
       </div>
       <div id="member-info-table" class="info-table"></div>
     </section>
+
+    <section id="member-admin-panel" class="panel" hidden>
+      <h2 class="panel-title">👥 팀 인원 관리 <span id="member-admin-team"></span></h2>
+      <p class="modal-sub">
+        인원을 추가하거나 삭제할 수 있습니다.
+        <strong>삭제 시 해당 인원의 투표·과제 제출·추가정보도 함께 삭제</strong>됩니다.
+      </p>
+      <div class="member-add-row">
+        <input id="new-member-name" class="ma-input" type="text" maxlength="30" placeholder="이름" />
+        <input id="new-member-dept" class="ma-input" type="text" maxlength="30" placeholder="부서 (선택)" />
+        <input id="new-member-email" class="ma-input" type="email" maxlength="100" placeholder="이메일 (선택)" />
+        <button id="add-member-btn" class="btn-primary">+ 추가</button>
+      </div>
+      <div id="member-admin-list" class="member-admin-list"></div>
+    </section>
    </div><!-- /view-schedule -->
 
    <div id="view-submit">

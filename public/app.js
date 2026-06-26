@@ -95,7 +95,14 @@ const el = {
   allEmpty: document.getElementById('all-empty'),
   submitTeamName: document.getElementById('submit-team-name'),
   submissionSummary: document.getElementById('submission-summary'),
-  submissionList: document.getElementById('submission-list')
+  submissionList: document.getElementById('submission-list'),
+  memberAdminPanel: document.getElementById('member-admin-panel'),
+  memberAdminTeam: document.getElementById('member-admin-team'),
+  memberAdminList: document.getElementById('member-admin-list'),
+  newMemberName: document.getElementById('new-member-name'),
+  newMemberDept: document.getElementById('new-member-dept'),
+  newMemberEmail: document.getElementById('new-member-email'),
+  addMemberBtn: document.getElementById('add-member-btn')
 };
 
 // 로딩 스피너 (동시 호출 대비 카운터)
@@ -170,7 +177,7 @@ async function selectTeam(teamId) {
   renderCalendar();
   renderConfirmBanner();
   updateAdminInfo();
-  if (isAdmin()) loadMemberInfoTable();
+  if (isAdmin()) { loadMemberInfoTable(); renderMemberAdmin(); }
 }
 
 function currentTeam() {
@@ -734,7 +741,149 @@ function applyAdminUI() {
   el.voteActions.hidden = admin;
   el.adminBar.hidden = !admin;
   el.adminInfoPanel.hidden = !admin;
-  if (admin) loadMemberInfoTable();
+  el.memberAdminPanel.hidden = !admin;
+  if (admin) { loadMemberInfoTable(); renderMemberAdmin(); }
+}
+
+/* ---------------- 관리자: 팀 인원 추가/삭제 ---------------- */
+
+async function renderMemberAdmin() {
+  if (!isAdmin()) return;
+  const team = currentTeam();
+  if (!team) return;
+  const teamId = state.currentTeam;
+  el.memberAdminTeam.textContent = `(${team.name})`;
+
+  // 이메일 포함 명단은 관리자 전용 엔드포인트로 조회
+  let members = [];
+  try {
+    const res = await fetch(`/api/admin/members?team=${encodeURIComponent(teamId)}`, {
+      headers: { Authorization: `Bearer ${state.adminToken}` }
+    });
+    if (res.status === 401) return handleAuthExpired();
+    if (res.ok) members = (await res.json()).members || [];
+  } catch (err) {
+    console.error(err);
+  }
+  if (state.currentTeam !== teamId) return; // 로딩 중 팀 변경 시 무시
+
+  el.memberAdminList.innerHTML = '';
+  if (!members.length) {
+    el.memberAdminList.innerHTML = '<p class="empty-note">등록된 인원이 없습니다. 아래에서 추가하세요.</p>';
+    return;
+  }
+  for (const m of members) {
+    const row = document.createElement('div');
+    row.className = 'ma-row';
+
+    const who = document.createElement('span');
+    who.className = 'ma-who';
+    who.innerHTML =
+      `<span class="ma-name">${escapeHtml(m.name)}</span>` +
+      `<span class="ma-dept">${escapeHtml(m.dept || '')}</span>`;
+
+    const email = document.createElement('input');
+    email.className = 'ma-email';
+    email.type = 'email';
+    email.maxLength = 100;
+    email.placeholder = '이메일 입력';
+    email.value = m.email || '';
+    // 변경 시(Enter/포커스아웃) 저장
+    email.addEventListener('change', () => saveMemberEmail(m.name, email.value, email));
+    email.addEventListener('keydown', (e) => { if (e.key === 'Enter') email.blur(); });
+
+    const del = document.createElement('button');
+    del.className = 'btn-clear ma-del';
+    del.textContent = '삭제';
+    del.onclick = () => removeMember(m.name);
+
+    row.append(who, email, del);
+    el.memberAdminList.appendChild(row);
+  }
+}
+
+async function saveMemberEmail(name, email, inputEl) {
+  try {
+    const res = await fetch('/api/admin/members/email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${state.adminToken}` },
+      body: JSON.stringify({ team: state.currentTeam, name, email })
+    });
+    if (res.status === 401) return handleAuthExpired();
+    if (res.status === 400) { alert('올바른 이메일 형식이 아닙니다.'); inputEl?.focus(); return; }
+    if (!res.ok) throw new Error('save failed');
+    if (inputEl) {
+      inputEl.classList.add('saved');
+      setTimeout(() => inputEl.classList.remove('saved'), 1000);
+    }
+  } catch (err) {
+    console.error(err);
+    alert('이메일 저장에 실패했습니다.');
+  }
+}
+
+async function reloadTeamsKeepingSelection() {
+  const res = await fetch('/api/teams');
+  const data = await res.json();
+  state.teams = data.teams || [];
+}
+
+async function addMember() {
+  const name = el.newMemberName.value.trim();
+  const dept = el.newMemberDept.value.trim();
+  const email = el.newMemberEmail.value.trim();
+  if (!name) { alert('이름을 입력하세요.'); el.newMemberName.focus(); return; }
+  el.addMemberBtn.disabled = true;
+  setLoading(true);
+  try {
+    const res = await fetch('/api/admin/members/add', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${state.adminToken}` },
+      body: JSON.stringify({ team: state.currentTeam, name, dept, email })
+    });
+    if (res.status === 401) return handleAuthExpired();
+    if (res.status === 409) { alert('이미 같은 이름의 인원이 있습니다.'); return; }
+    if (res.status === 400) { alert('올바른 이메일 형식이 아닙니다.'); el.newMemberEmail.focus(); return; }
+    if (!res.ok) throw new Error('add failed');
+    el.newMemberName.value = '';
+    el.newMemberDept.value = '';
+    el.newMemberEmail.value = '';
+    await reloadTeamsKeepingSelection();
+    renderMemberAdmin();
+    renderMembers();
+  } catch (err) {
+    console.error(err);
+    alert('인원 추가에 실패했습니다.');
+  } finally {
+    el.addMemberBtn.disabled = false;
+    setLoading(false);
+  }
+}
+
+async function removeMember(name) {
+  if (!confirm(`[${name}] 님을 삭제할까요?\n이 인원의 투표·과제 제출·추가정보가 모두 삭제되며 되돌릴 수 없습니다.`)) {
+    return;
+  }
+  setLoading(true);
+  try {
+    const res = await fetch('/api/admin/members/remove', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${state.adminToken}` },
+      body: JSON.stringify({ team: state.currentTeam, name })
+    });
+    if (res.status === 401) return handleAuthExpired();
+    if (!res.ok) throw new Error('remove failed');
+    await reloadTeamsKeepingSelection();
+    await loadVotes();          // 삭제된 인원의 투표 반영
+    renderMemberAdmin();
+    renderMembers();
+    renderCalendar();
+  } catch (err) {
+    console.error(err);
+    alert('인원 삭제에 실패했습니다.');
+  } finally {
+    setLoading(false);
+  }
 }
 
 /* ---------------- 추가정보 (구독 AI) ---------------- */
@@ -1047,6 +1196,11 @@ el.confirmTime.addEventListener('input', () => { if (isAdmin()) updateAdminInfo(
 
 // 관리자 현황 새로고침
 el.refreshInfoBtn.onclick = loadMemberInfoTable;
+
+// 인원 관리: 추가 버튼 + Enter 키
+el.addMemberBtn.onclick = addMember;
+[el.newMemberName, el.newMemberDept, el.newMemberEmail].forEach((inp) =>
+  inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') addMember(); }));
 
 init().catch((err) => {
   console.error(err);

@@ -193,8 +193,8 @@
 
     .grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-      gap: 16px;
+      grid-template-columns: repeat(auto-fill, minmax(215px, 1fr));
+      gap: 12px;
     }
     .site-card {
       position: relative;
@@ -202,8 +202,8 @@
       flex-direction: column;
       background: var(--card);
       border: 1px solid var(--line);
-      border-radius: 16px;
-      padding: 20px 20px 18px;
+      border-radius: 13px;
+      padding: 13px 14px;
       text-decoration: none;
       color: inherit;
       box-shadow: 0 1px 2px rgba(16,18,38,.04);
@@ -214,7 +214,7 @@
       content: '';
       position: absolute;
       inset: 0 0 auto 0;
-      height: 4px;
+      height: 3px;
       background: linear-gradient(90deg, var(--accent), var(--accent2));
       opacity: .85;
     }
@@ -227,11 +227,11 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 10px;
+      gap: 8px;
     }
     .site-card .site-fav {
-      width: 40px; height: 40px;
-      border-radius: 10px;
+      width: 30px; height: 30px;
+      border-radius: 8px;
       background: #f4f6fb;
       border: 1px solid var(--line);
       display: grid;
@@ -239,8 +239,8 @@
       overflow: hidden;
       flex: none;
     }
-    .site-card .site-fav img { width: 24px; height: 24px; display: block; }
-    .site-card .fav-fallback { display: none; font-size: 20px; line-height: 1; }
+    .site-card .site-fav img { width: 18px; height: 18px; display: block; }
+    .site-card .fav-fallback { display: none; font-size: 16px; line-height: 1; }
     .site-card .cat-badge {
       margin-right: auto;
       display: inline-flex;
@@ -258,34 +258,50 @@
       overflow: hidden;
       text-overflow: ellipsis;
     }
-    .site-card .num {
-      font-size: 12px;
-      font-weight: 700;
-      color: var(--accent);
-      letter-spacing: .05em;
+    .site-card .update-badge {
       flex: none;
+      padding: 3px 9px;
+      border-radius: 999px;
+      font-size: 10.5px;
+      font-weight: 800;
+      letter-spacing: .04em;
+      color: #fff;
+      background: linear-gradient(135deg, #2dd4bf, #3b82f6);
+      box-shadow: 0 2px 8px rgba(59,130,246,.35);
+      animation: updatepulse 1.6s ease-in-out infinite;
+    }
+    @keyframes updatepulse {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.08); opacity: .85; }
     }
     .site-card .title {
-      margin: 12px 0 0;
-      font-size: 18px;
+      margin: 9px 0 0;
+      font-size: 15px;
       font-weight: 800;
-      line-height: 1.35;
+      line-height: 1.3;
       word-break: break-word;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
     }
     .site-card .summary {
-      margin-top: 8px;
-      font-size: 13px;
-      color: #424a5e;
-      line-height: 1.5;
+      margin-top: 5px;
+      font-size: 12px;
+      color: #5b6478;
+      line-height: 1.45;
       word-break: break-word;
-      white-space: pre-wrap;
       cursor: text;
-      border-radius: 8px;
-      padding: 4px 6px;
-      margin-left: -6px;
-      margin-right: -6px;
+      border-radius: 6px;
+      padding: 3px 5px;
+      margin-left: -5px;
+      margin-right: -5px;
       transition: background .12s;
-      flex: 1;
+      /* 2줄 말줄임 — 전문은 더블클릭 편집에서 확인 */
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
     }
     .site-card .summary:hover { background: #f4f6fb; }
     .site-card .summary.empty { color: var(--muted); font-style: italic; }
@@ -311,6 +327,8 @@
       outline: none;
     }
     .site-card .cat-edit {
+      flex: 1;
+      min-width: 0;
       font: inherit;
       font-size: 12.5px;
       font-weight: 700;
@@ -322,20 +340,53 @@
       cursor: pointer;
       outline: none;
     }
+    .site-card .edit-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .site-card .edit-save,
+    .site-card .edit-cancel {
+      font: inherit;
+      font-size: 12.5px;
+      font-weight: 700;
+      border-radius: 8px;
+      padding: 6px 12px;
+      cursor: pointer;
+      white-space: nowrap;
+      border: 1px solid var(--line);
+    }
+    .site-card .edit-save {
+      color: #fff;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      border-color: transparent;
+    }
+    .site-card .edit-save:hover { filter: brightness(1.05); }
+    .site-card .edit-cancel {
+      color: var(--muted);
+      background: #fff;
+    }
+    .site-card .edit-cancel:hover { color: var(--ink); border-color: #b9c4ee; }
     .site-card .meta {
-      margin-top: 14px;
-      padding-top: 12px;
+      margin-top: auto;        /* 카드 하단에 고정 */
+      padding-top: 9px;
       border-top: 1px dashed var(--line);
       display: flex;
       align-items: center;
       gap: 8px;
     }
-    .site-card .who { line-height: 1.3; }
-    .site-card .who .name { font-size: 13.5px; font-weight: 700; display: block; }
-    .site-card .who .dept { font-size: 12px; color: var(--muted); display: block; }
+    .site-card .who {
+      min-width: 0;
+      flex: 1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .site-card .who .name { font-size: 12.5px; font-weight: 700; }
+    .site-card .who .dept { font-size: 11.5px; color: var(--muted); margin-left: 5px; }
     .site-card .go {
-      margin-left: auto;
-      font-size: 13px;
+      flex: none;
+      font-size: 12px;
       font-weight: 700;
       color: var(--accent);
     }
@@ -367,6 +418,88 @@
       border: 1px solid var(--line);
     }
     @keyframes sh { 0% { background-position: 100% 0; } 100% { background-position: -100% 0; } }
+
+    /* ---- 카드 요청 버튼 ---- */
+    .site-card .req-btn {
+      flex: none;
+      font: inherit;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--accent);
+      background: #eef1fb;
+      border: 1px solid #dfe5fb;
+      border-radius: 999px;
+      padding: 3px 10px;
+      cursor: pointer;
+    }
+    .site-card .req-btn:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .site-card .req-btn .rb-n {
+      margin-left: 3px;
+      font-size: 10.5px;
+      background: #ff6b6b;
+      color: #fff;
+      border-radius: 999px;
+      padding: 0 5px;
+    }
+
+    /* ---- 요청 모달 ---- */
+    .req-modal {
+      position: fixed; inset: 0; z-index: 50;
+      background: rgba(15,18,38,.55);
+      display: flex; align-items: center; justify-content: center;
+      padding: 16px;
+    }
+    .req-modal[hidden] { display: none; }
+    .req-box {
+      width: 100%; max-width: 520px; max-height: 86vh;
+      display: flex; flex-direction: column;
+      background: #fff; border-radius: 16px; overflow: hidden;
+      box-shadow: 0 20px 60px rgba(0,0,0,.35);
+    }
+    .req-head {
+      display: flex; align-items: center; gap: 10px;
+      padding: 16px 18px; border-bottom: 1px solid var(--line);
+    }
+    .req-head h3 { margin: 0; font-size: 16px; font-weight: 800; flex: 1; word-break: break-word; }
+    .req-close {
+      flex: none; border: none; background: #eef1f7;
+      width: 30px; height: 30px; border-radius: 8px; cursor: pointer; font-size: 15px; color: var(--muted);
+    }
+    .req-close:hover { background: #e2e6ef; color: var(--ink); }
+    .req-list { padding: 12px 18px; overflow-y: auto; flex: 1; }
+    .req-list .req-empty { color: var(--muted); font-size: 13px; text-align: center; padding: 18px 0; }
+    .req-item {
+      display: flex; gap: 10px; align-items: flex-start;
+      padding: 10px 0; border-bottom: 1px dashed var(--line);
+    }
+    .req-item:last-child { border-bottom: none; }
+    .req-item input[type=checkbox] { margin-top: 3px; width: 16px; height: 16px; flex: none; cursor: pointer; }
+    .req-item .ri-body { flex: 1; min-width: 0; }
+    .req-item .ri-text { font-size: 13.5px; line-height: 1.45; color: var(--ink); white-space: pre-wrap; word-break: break-word; }
+    .req-item .ri-meta { font-size: 11.5px; color: var(--muted); margin-top: 3px; }
+    .req-item.done .ri-text { text-decoration: line-through; color: var(--muted); }
+    .req-form { padding: 14px 18px; border-top: 1px solid var(--line); background: #fafbff; }
+    .req-form textarea {
+      width: 100%; min-height: 70px; font: inherit; font-size: 13.5px; line-height: 1.5;
+      border: 1px solid var(--line); border-radius: 10px; padding: 10px; resize: vertical; outline: none;
+    }
+    .req-form textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(108,139,255,.18); }
+    .req-form-row { display: flex; gap: 8px; margin-top: 8px; }
+    .req-form-row input {
+      flex: 1; min-width: 0; font: inherit; font-size: 13px;
+      border: 1px solid var(--line); border-radius: 10px; padding: 9px 11px; outline: none;
+    }
+    .req-form-row input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(108,139,255,.18); }
+    #req-submit {
+      flex: none; font: inherit; font-size: 13.5px; font-weight: 700; color: #fff; cursor: pointer;
+      border: none; border-radius: 10px; padding: 9px 18px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+    }
+    #req-submit:hover { filter: brightness(1.05); }
+    #req-submit:disabled { opacity: .6; cursor: progress; }
+    .req-status { margin: 8px 0 0; font-size: 12.5px; min-height: 16px; }
+    .req-status.ok { color: var(--accent); }
+    .req-status.warn { color: #d9822b; }
   </style>
 </head>
 <body>
@@ -397,6 +530,25 @@
   <footer>
     세미나 과제 모음 · <a href="/">세미나 일정 웹서비스 →</a>
   </footer>
+
+  <div id="req-modal" class="req-modal" hidden>
+    <div class="req-box">
+      <div class="req-head">
+        <h3 id="req-title">요청</h3>
+        <button id="req-close" class="req-close" type="button" aria-label="닫기">✕</button>
+      </div>
+      <div id="req-list" class="req-list"></div>
+      <div class="req-form">
+        <textarea id="req-content" maxlength="500"
+          placeholder="요청 내용을 적어주세요 (예: 모바일에서 글자가 깨져요 / 다크모드 추가 요청)"></textarea>
+        <div class="req-form-row">
+          <input id="req-name" type="text" maxlength="30" placeholder="요청자 이름 (선택)" />
+          <button id="req-submit" type="button">요청 보내기</button>
+        </div>
+        <p id="req-status" class="req-status"></p>
+      </div>
+    </div>
+  </div>
 
   <script src="showcase.js"></script>
 </body>

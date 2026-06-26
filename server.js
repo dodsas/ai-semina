@@ -2,6 +2,7 @@ import express from 'express';
 import crypto from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import nodemailer from 'nodemailer';
 import { db, initDb, newSubmissionId } from './db.js';
 import { TEAMS } from './teams.js';
 
@@ -23,8 +24,66 @@ app.get('/showcase', (_req, res) => {
 app.use(express.static(path.join(__dirname, 'public')));
 
 const TEAM_IDS = new Set(TEAMS.map((t) => t.id));
-const memberNames = (teamId) =>
-  new Set((TEAMS.find((t) => t.id === teamId)?.members || []).map((m) => m.name));
+
+// 팀별 인원은 DB(team_members)에서 관리. 메모리 캐시로 동기 조회.
+let membersByTeam = {};
+async function loadMembersCache() {
+  const r = await db.execute('SELECT team, name, dept, email FROM team_members ORDER BY team, sort, rowid');
+  const m = {};
+  for (const t of TEAMS) m[t.id] = [];
+  for (const row of r.rows) (m[row.team] ??= []).push({ name: row.name, dept: row.dept, email: row.email || '' });
+  membersByTeam = m;
+}
+const teamMembers = (teamId) => membersByTeam[teamId] || [];
+const memberNames = (teamId) => new Set(teamMembers(teamId).map((m) => m.name));
+const deptOf = (teamId, name) => teamMembers(teamId).find((m) => m.name === name)?.dept || '';
+const emailOf = (teamId, name) => teamMembers(teamId).find((m) => m.name === name)?.email || '';
+
+// 이메일 정규화: 빈 문자열은 허용(삭제), 형식 불일치는 null
+function normalizeEmail(raw) {
+  if (typeof raw !== 'string') return '';
+  const s = raw.trim().slice(0, 100);
+  if (!s) return '';
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s) ? s : null;
+}
+
+// --- 요청 메일 발송용 SMTP (미설정 시 발송 스킵) ---
+const MAIL_FROM = process.env.MAIL_FROM || process.env.SMTP_USER || 'noreply@showcase.local';
+let mailer = null;
+if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) {
+  mailer = nodemailer.createTransport({
+    host: process.env.SMTP_HOST,
+    port: Number(process.env.SMTP_PORT || 587),
+    secure: String(process.env.SMTP_SECURE) === '1' || Number(process.env.SMTP_PORT) === 465,
+    auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+    connectionTimeout: 8000, greetingTimeout: 8000, socketTimeout: 10000
+  });
+  console.log('[mail] SMTP 발송 활성');
+} else {
+  console.log('[mail] SMTP 미설정 — 요청은 저장되며 메일은 발송되지 않음');
+}
+
+async function sendRequestMail(to, site, content, requester) {
+  if (!mailer) return false;
+  const base = process.env.RENDER_EXTERNAL_URL || '';
+  const link = base ? `${base}/showcase` : '/showcase';
+  try {
+    await mailer.sendMail({
+      from: MAIL_FROM,
+      to,
+      subject: `[과제 쇼케이스] "${site.title || site.url}" 사이트에 새 요청이 등록되었습니다`,
+      text:
+        `사이트: ${site.title || ''} (${site.url})\n` +
+        `요청자: ${requester || '익명'}\n\n` +
+        `요청 내용:\n${content}\n\n` +
+        `쇼케이스에서 확인: ${link}`
+    });
+    return true;
+  } catch (err) {
+    console.error('[mail] 발송 실패:', err.message);
+    return false;
+  }
+}
 
 // --- 관리자 인증 (메모리 토큰; 재시작 시 재로그인 필요) ---
 const adminTokens = new Set();
@@ -53,7 +112,13 @@ app.post('/api/admin/login', (req, res) => {
 
 // 팀/인원 목록 + 고정 세미나 시간
 app.get('/api/teams', (_req, res) => {
-  res.json({ teams: TEAMS, seminarTime: SEMINAR_TIME });
+  // 공개 API — 이메일(개인정보)은 노출하지 않음
+  const teams = TEAMS.map((t) => ({
+    id: t.id,
+    name: t.name,
+    members: teamMembers(t.id).map((m) => ({ name: m.name, dept: m.dept }))
+  }));
+  res.json({ teams, seminarTime: SEMINAR_TIME });
 });
 
 // 특정 팀의 투표 현황 (날짜별 투표자 목록)
@@ -217,7 +282,7 @@ app.get('/api/admin/member-info', requireAdmin, async (req, res) => {
     });
     const byMember = {};
     for (const row of r.rows) byMember[row.member] = row;
-    const members = (TEAMS.find((t) => t.id === team)?.members || []).map((m) => {
+    const members = teamMembers(team).map((m) => {
       const row = byMember[m.name];
       return {
         name: m.name,
@@ -262,7 +327,7 @@ app.get('/api/submissions', async (req, res) => {
     });
     const byMember = {};
     for (const row of r.rows) byMember[row.member] = row;
-    const members = (TEAMS.find((t) => t.id === team)?.members || []).map((m) => {
+    const members = teamMembers(team).map((m) => {
       const row = byMember[m.name];
       return {
         id: row?.id || null,
@@ -385,11 +450,103 @@ async function refreshAllIcons() {
   return `아이콘 ${found}/${urls.length}`;
 }
 
+// 사이트 HTML 을 받아 sha256 해시 계산 (실패 시 null)
+async function fetchPageHash(url) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 8000);
+  try {
+    const resp = await fetch(url, {
+      redirect: 'follow', signal: ctrl.signal,
+      headers: { 'User-Agent': 'Mozilla/5.0 (change-bot)' }
+    });
+    if (!resp.ok) return null;
+    const html = await resp.text();
+    return crypto.createHash('sha256').update(html).digest('hex');
+  } catch { return null; } finally { clearTimeout(timer); }
+}
+
+// 사이트 변경 감지.
+//  - 기준 해시(baseline=html_hash)는 하루 1회만 전진 (배치의 첫 실행 = startup/scheduled/그날 첫 manual).
+//  - 새로고침(같은 날 추가 실행)은 baseline 과 비교해 다르면 UPDATED 마커를 켜기만 하고(끄지 않음),
+//    baseline 은 그대로 둔다 → 마커는 하루 유지되면서 새로고침으로도 변경을 즉시 감지.
+//  - 다음날 첫 실행에서 baseline 이 전진하며 마커를 재평가(변경 없으면 해제).
+//  - 최초 1회(테이블 비어있음)는 기준선만 잡고 마커 없음.
+async function checkSiteChanges(trigger = 'auto') {
+  const { date } = seoulNow();
+  const baselineDone = (await db.execute({
+    sql: "SELECT 1 FROM batch_runs WHERE name = 'change-baseline' AND run_date = ?",
+    args: [date]
+  })).rows.length > 0;
+  const advance = !baselineDone; // 오늘 첫 실행이면 기준선 전진
+
+  const r = await db.execute("SELECT DISTINCT url FROM submissions WHERE url <> ''");
+  const urls = r.rows.map((x) => x.url);
+  const existing = await db.execute('SELECT url, html_hash FROM site_pages');
+  const prevByUrl = {};
+  for (const row of existing.rows) prevByUrl[row.url] = row.html_hash;
+  const baselineEmpty = existing.rows.length === 0; // 최초 기준선
+
+  const results = await mapPool(urls, 6, async (url) => ({ url, hash: await fetchPageHash(url) }));
+  let changed = 0, fresh = 0, failed = 0;
+  for (const { url, hash } of results) {
+    if (!hash) { failed++; continue; } // 못 받으면 기존 상태 유지
+    const prev = prevByUrl[url];
+
+    if (baselineEmpty) {
+      // 최초: 기준선만 설정, 마커 없음
+      await db.execute({
+        sql: `INSERT INTO site_pages (url, html_hash, is_new, checked_at) VALUES (?, ?, 0, datetime('now'))
+              ON CONFLICT(url) DO UPDATE SET html_hash = excluded.html_hash, is_new = 0, checked_at = excluded.checked_at`,
+        args: [url, hash]
+      });
+      continue;
+    }
+
+    const diff = prev === undefined ? true : prev !== hash; // 신규 사이트 or 내용 변경
+    if (diff) (prev === undefined ? fresh++ : changed++);
+
+    if (advance) {
+      // 일일 첫 실행: 마커 재평가 + 기준선 전진
+      await db.execute({
+        sql: `INSERT INTO site_pages (url, html_hash, is_new, checked_at, changed_at)
+              VALUES (?, ?, ?, datetime('now'), CASE WHEN ? = 1 THEN datetime('now') ELSE NULL END)
+              ON CONFLICT(url) DO UPDATE SET
+                html_hash = excluded.html_hash, is_new = excluded.is_new, checked_at = excluded.checked_at,
+                changed_at = CASE WHEN excluded.is_new = 1 THEN datetime('now') ELSE site_pages.changed_at END`,
+        args: [url, hash, diff ? 1 : 0, diff ? 1 : 0]
+      });
+    } else if (diff) {
+      // 새로고침: 기준선과 다르면 마커 ON (기준선 html_hash 는 유지, 마커는 끄지 않음)
+      await db.execute({
+        sql: `INSERT INTO site_pages (url, html_hash, is_new, checked_at, changed_at)
+              VALUES (?, ?, 1, datetime('now'), datetime('now'))
+              ON CONFLICT(url) DO UPDATE SET is_new = 1, checked_at = excluded.checked_at, changed_at = excluded.changed_at`,
+        args: [url, hash]
+      });
+    }
+  }
+
+  const detail = baselineEmpty
+    ? `변경감지 기준선 설정(${urls.length})`
+    : `변경 ${changed} · 신규 ${fresh}${failed ? ` · 실패 ${failed}` : ''}${advance ? '' : ' (새로고침)'}`;
+
+  if (advance) {
+    await db.execute({
+      sql: `INSERT INTO batch_runs (name, run_date, ran_at, detail)
+            VALUES ('change-baseline', ?, datetime('now'), ?)
+            ON CONFLICT(name, run_date) DO UPDATE SET ran_at = excluded.ran_at, detail = excluded.detail`,
+      args: [date, detail]
+    });
+  }
+  return detail;
+}
+
 // ---- 공통 일일 배치 ----
 // 매일 1회(08:30 KST) 실행되어야 하는 작업들을 이 목록에 묶는다.
 // 추후 기능은 BATCH_TASKS 에 { name, run } 으로 추가하면 같은 배치/새로고침에 함께 실행된다.
 const BATCH_TASKS = [
-  { name: 'icons', run: refreshAllIcons }
+  { name: 'icons', run: refreshAllIcons },
+  { name: 'changes', run: checkSiteChanges }
 ];
 
 const BATCH_NAME = 'daily';
@@ -421,7 +578,7 @@ async function runDailyBatch(trigger = 'auto') {
     const details = [];
     for (const task of BATCH_TASKS) {
       try {
-        details.push(await task.run());
+        details.push(await task.run(trigger));
       } catch (e) {
         console.error(`[batch:${task.name}] 실패:`, e);
         details.push(`${task.name} 실패`);
@@ -469,15 +626,19 @@ function startDailyBatchScheduler() {
 // 전체 팀 제출 사이트 모음 (쇼케이스용 — 팀 구분 없이 제출된 사이트만)
 app.get('/api/all-submissions', async (_req, res) => {
   try {
-    const [subs, icons] = await Promise.all([
-      db.execute("SELECT id, team, member, title, url, summary, category, updated_at FROM submissions WHERE url <> '' ORDER BY updated_at"),
-      db.execute('SELECT url, icon_src, icon_data FROM site_icons')
+    const [subs, icons, pages, reqs] = await Promise.all([
+      // 클릭수 많은 순으로 상단 노출 (동률은 먼저 제출한 순)
+      db.execute("SELECT id, team, member, title, url, summary, category, clicks, updated_at FROM submissions WHERE url <> '' ORDER BY clicks DESC, updated_at ASC"),
+      db.execute('SELECT url, icon_src, icon_data FROM site_icons'),
+      db.execute('SELECT url, is_new FROM site_pages'),
+      db.execute('SELECT submission_id, COUNT(*) AS t, SUM(CASE WHEN done = 0 THEN 1 ELSE 0 END) AS o FROM requests GROUP BY submission_id')
     ]);
     const iconByUrl = {};
     for (const row of icons.rows) iconByUrl[row.url] = row;
-    // 부서 정보는 teams.js 에서 보강
-    const deptOf = (team, member) =>
-      (TEAMS.find((t) => t.id === team)?.members || []).find((m) => m.name === member)?.dept || '';
+    const newByUrl = {};
+    for (const row of pages.rows) newByUrl[row.url] = !!row.is_new;
+    const reqBySub = {};
+    for (const row of reqs.rows) reqBySub[row.submission_id] = { t: Number(row.t || 0), o: Number(row.o || 0) };
     const sites = subs.rows.map((row) => {
       const ic = iconByUrl[row.url];
       return {
@@ -488,10 +649,16 @@ app.get('/api/all-submissions', async (_req, res) => {
         url: row.url,
         summary: row.summary || '',
         category: row.category || '',
+        clicks: Number(row.clicks || 0),
+        updated: !!newByUrl[row.url],
+        reqTotal: reqBySub[row.id]?.t || 0,
+        reqOpen: reqBySub[row.id]?.o || 0,
         favicon: (ic && (ic.icon_data || ic.icon_src)) || null, // DB 저장 아이콘 우선
         updatedAt: row.updated_at || null
       };
     });
+    // 업데이트(해시 변경/신규) 감지된 사이트를 최상단으로. 그 외(클릭수 DESC, 제출 순)는 안정 정렬로 유지.
+    sites.sort((a, b) => (b.updated ? 1 : 0) - (a.updated ? 1 : 0));
     res.json({ sites, count: sites.length, batchUpdatedAt: await lastBatchAt() });
   } catch (err) {
     console.error('[GET /api/all-submissions]', err);
@@ -523,6 +690,93 @@ app.post('/api/submissions/summary', async (req, res) => {
     res.json({ ok: true, id, ...out });
   } catch (err) {
     console.error('[POST /api/submissions/summary]', err);
+    res.status(500).json({ error: 'db error' });
+  }
+});
+
+// 쇼케이스 링크 클릭수 +1 (과제 고유키 id 로 식별)
+app.post('/api/submissions/click', async (req, res) => {
+  const id = typeof req.body?.id === 'string' ? req.body.id : '';
+  if (!id) return res.status(400).json({ error: 'missing id' });
+  try {
+    const r = await db.execute({
+      sql: 'UPDATE submissions SET clicks = clicks + 1 WHERE id = ?',
+      args: [id]
+    });
+    if (!r.rowsAffected) return res.status(404).json({ error: 'not found' });
+    const row = await db.execute({ sql: 'SELECT clicks FROM submissions WHERE id = ?', args: [id] });
+    res.json({ ok: true, id, clicks: Number(row.rows[0]?.clicks || 0) });
+  } catch (err) {
+    console.error('[POST /api/submissions/click]', err);
+    res.status(500).json({ error: 'db error' });
+  }
+});
+
+// ---- 사이트 요청(피드백) ----
+// 사이트별 요청 목록 (완료 안 된 것 먼저, 최신순)
+app.get('/api/requests', async (req, res) => {
+  const sid = String(req.query.sid || '');
+  if (!sid) return res.status(400).json({ error: 'missing sid' });
+  try {
+    const r = await db.execute({
+      sql: `SELECT id, content, requester, done, created_at FROM requests
+            WHERE submission_id = ? ORDER BY done ASC, created_at DESC`,
+      args: [sid]
+    });
+    res.json({
+      requests: r.rows.map((x) => ({
+        id: x.id, content: x.content, requester: x.requester || '',
+        done: !!x.done, createdAt: x.created_at
+      }))
+    });
+  } catch (err) {
+    console.error('[GET /api/requests]', err);
+    res.status(500).json({ error: 'db error' });
+  }
+});
+
+// 요청 등록 — 담당자(인원) 이메일이 등록돼 있으면 메일 발송
+app.post('/api/requests', async (req, res) => {
+  const sid = typeof req.body?.sid === 'string' ? req.body.sid : '';
+  const content = typeof req.body?.content === 'string' ? req.body.content.trim().slice(0, 500) : '';
+  const requester = typeof req.body?.requester === 'string' ? req.body.requester.trim().slice(0, 30) : '';
+  if (!sid || !content) return res.status(400).json({ error: 'sid and content required' });
+  try {
+    const sub = await db.execute({
+      sql: 'SELECT id, team, member, title, url FROM submissions WHERE id = ?',
+      args: [sid]
+    });
+    if (!sub.rows.length) return res.status(404).json({ error: 'site not found' });
+    const s = sub.rows[0];
+    const id = 'r_' + crypto.randomBytes(9).toString('hex');
+    await db.execute({
+      sql: 'INSERT INTO requests (id, submission_id, content, requester) VALUES (?, ?, ?, ?)',
+      args: [id, sid, content, requester]
+    });
+    const to = emailOf(s.team, s.member);
+    let emailed = false;
+    if (to) {
+      emailed = await sendRequestMail(to, s, content, requester);
+      if (emailed) await db.execute({ sql: 'UPDATE requests SET emailed = 1 WHERE id = ?', args: [id] });
+    }
+    res.json({ ok: true, id, hasEmail: !!to, emailed });
+  } catch (err) {
+    console.error('[POST /api/requests]', err);
+    res.status(500).json({ error: 'db error' });
+  }
+});
+
+// 요청 완료 토글 (적용 완료 체크)
+app.post('/api/requests/done', async (req, res) => {
+  const id = typeof req.body?.id === 'string' ? req.body.id : '';
+  const done = req.body?.done ? 1 : 0;
+  if (!id) return res.status(400).json({ error: 'missing id' });
+  try {
+    const r = await db.execute({ sql: 'UPDATE requests SET done = ? WHERE id = ?', args: [done, id] });
+    if (!r.rowsAffected) return res.status(404).json({ error: 'not found' });
+    res.json({ ok: true, id, done: !!done });
+  } catch (err) {
+    console.error('[POST /api/requests/done]', err);
     res.status(500).json({ error: 'db error' });
   }
 });
@@ -586,6 +840,83 @@ app.post('/api/admin/clear', requireAdmin, async (req, res) => {
     res.json({ ok: true });
   } catch (err) {
     console.error('[POST /api/admin/clear]', err);
+    res.status(500).json({ error: 'db error' });
+  }
+});
+
+// 관리자: 팀 인원 목록 (이메일 포함 — 관리자 전용)
+app.get('/api/admin/members', requireAdmin, (req, res) => {
+  const team = String(req.query.team || '');
+  if (!TEAM_IDS.has(team)) return res.status(400).json({ error: 'unknown team' });
+  res.json({ team, members: teamMembers(team) });
+});
+
+// 관리자: 팀 인원 추가 (이메일 선택)
+app.post('/api/admin/members/add', requireAdmin, async (req, res) => {
+  const { team } = req.body || {};
+  const name = typeof req.body?.name === 'string' ? req.body.name.trim().slice(0, 30) : '';
+  const dept = typeof req.body?.dept === 'string' ? req.body.dept.trim().slice(0, 30) : '';
+  const email = normalizeEmail(req.body?.email);
+  if (!TEAM_IDS.has(team)) return res.status(400).json({ error: 'unknown team' });
+  if (!name) return res.status(400).json({ error: 'name required' });
+  if (email === null) return res.status(400).json({ error: 'invalid email' });
+  if (memberNames(team).has(name)) return res.status(409).json({ error: 'duplicate name' });
+  try {
+    const mx = await db.execute({
+      sql: 'SELECT COALESCE(MAX(sort), -1) AS m FROM team_members WHERE team = ?',
+      args: [team]
+    });
+    const sort = Number(mx.rows[0]?.m ?? -1) + 1;
+    await db.execute({
+      sql: 'INSERT INTO team_members (team, name, dept, email, sort) VALUES (?, ?, ?, ?, ?)',
+      args: [team, name, dept, email, sort]
+    });
+    await loadMembersCache();
+    res.json({ ok: true, team, members: teamMembers(team) });
+  } catch (err) {
+    console.error('[POST /api/admin/members/add]', err);
+    res.status(500).json({ error: 'db error' });
+  }
+});
+
+// 관리자: 인원 이메일 저장/수정 (빈 값이면 삭제)
+app.post('/api/admin/members/email', requireAdmin, async (req, res) => {
+  const { team, name } = req.body || {};
+  if (!TEAM_IDS.has(team)) return res.status(400).json({ error: 'unknown team' });
+  if (!name || !memberNames(team).has(name)) return res.status(400).json({ error: 'unknown member' });
+  const email = normalizeEmail(req.body?.email);
+  if (email === null) return res.status(400).json({ error: 'invalid email' });
+  try {
+    await db.execute({
+      sql: 'UPDATE team_members SET email = ? WHERE team = ? AND name = ?',
+      args: [email, team, name]
+    });
+    await loadMembersCache();
+    res.json({ ok: true, team, name, email });
+  } catch (err) {
+    console.error('[POST /api/admin/members/email]', err);
+    res.status(500).json({ error: 'db error' });
+  }
+});
+
+// 관리자: 팀 인원 삭제 (해당 인원의 투표·제출·추가정보도 함께 삭제)
+app.post('/api/admin/members/remove', requireAdmin, async (req, res) => {
+  const { team, name } = req.body || {};
+  if (!TEAM_IDS.has(team)) return res.status(400).json({ error: 'unknown team' });
+  if (!name || !memberNames(team).has(name)) {
+    return res.status(400).json({ error: 'unknown member' });
+  }
+  try {
+    await db.batch([
+      { sql: 'DELETE FROM team_members WHERE team = ? AND name = ?', args: [team, name] },
+      { sql: 'DELETE FROM votes WHERE team = ? AND member = ?', args: [team, name] },
+      { sql: 'DELETE FROM submissions WHERE team = ? AND member = ?', args: [team, name] },
+      { sql: 'DELETE FROM member_info WHERE team = ? AND member = ?', args: [team, name] }
+    ], 'write');
+    await loadMembersCache();
+    res.json({ ok: true, team, members: teamMembers(team) });
+  } catch (err) {
+    console.error('[POST /api/admin/members/remove]', err);
     res.status(500).json({ error: 'db error' });
   }
 });
@@ -678,6 +1009,7 @@ function startKeepAlive() {
 }
 
 initDb()
+  .then(loadMembersCache)
   .then(() => {
     app.listen(PORT, () => {
       console.log(`[server] http://localhost:${PORT} 에서 실행 중`);

@@ -1,5 +1,6 @@
 import { createClient } from '@libsql/client';
 import crypto from 'node:crypto';
+import { TEAMS } from './teams.js';
 import 'dotenv/config';
 
 // 과제(제출)별 고유키 생성기
@@ -120,6 +121,11 @@ export async function initDb() {
     await db.execute("ALTER TABLE submissions ADD COLUMN category TEXT NOT NULL DEFAULT ''");
     console.log('[DB] submissions.category 컬럼 추가');
   }
+  // 쇼케이스 링크 클릭수 컬럼
+  if (!subCols.includes('clicks')) {
+    await db.execute("ALTER TABLE submissions ADD COLUMN clicks INTEGER NOT NULL DEFAULT 0");
+    console.log('[DB] submissions.clicks 컬럼 추가');
+  }
   // 고유키 누락 행 백필 (매 기동 시 보강 — 구버전으로 들어온 행 대비)
   const missing = await db.execute("SELECT team, member FROM submissions WHERE id IS NULL OR id = ''");
   for (const row of missing.rows) {
@@ -150,5 +156,63 @@ export async function initDb() {
       PRIMARY KEY (name, run_date)
     )
   `);
+
+  // 사이트 HTML 해시 (하루 1회 변경 감지 + NEW 마커)
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS site_pages (
+      url        TEXT PRIMARY KEY,
+      html_hash  TEXT NOT NULL DEFAULT '',
+      is_new     INTEGER NOT NULL DEFAULT 0,
+      checked_at TEXT,
+      changed_at TEXT
+    )
+  `);
+
+  // 사이트별 요청(피드백) — 등록 시 담당자 이메일로 발송, 완료 체크 가능
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS requests (
+      id            TEXT PRIMARY KEY,
+      submission_id TEXT NOT NULL,
+      content       TEXT NOT NULL,
+      requester     TEXT NOT NULL DEFAULT '',
+      done          INTEGER NOT NULL DEFAULT 0,
+      emailed       INTEGER NOT NULL DEFAULT 0,
+      created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `);
+  await db.execute('CREATE INDEX IF NOT EXISTS idx_requests_sub ON requests (submission_id)');
+
+  // 팀별 세미나 인원 (관리자가 추가/삭제). 비어 있으면 teams.js 로 최초 시드.
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS team_members (
+      team  TEXT NOT NULL,
+      name  TEXT NOT NULL,
+      dept  TEXT NOT NULL DEFAULT '',
+      email TEXT NOT NULL DEFAULT '',
+      sort  INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (team, name)
+    )
+  `);
+  // 기존 team_members 테이블에 email 컬럼 보강
+  const tmInfo = await db.execute('PRAGMA table_info(team_members)');
+  if (!tmInfo.rows.some((r) => r.name === 'email')) {
+    await db.execute("ALTER TABLE team_members ADD COLUMN email TEXT NOT NULL DEFAULT ''");
+    console.log('[DB] team_members.email 컬럼 추가');
+  }
+  const cnt = await db.execute('SELECT COUNT(*) AS n FROM team_members');
+  if (Number(cnt.rows[0]?.n || 0) === 0) {
+    let seeded = 0;
+    for (const t of TEAMS) {
+      let i = 0;
+      for (const m of t.members) {
+        await db.execute({
+          sql: 'INSERT INTO team_members (team, name, dept, sort) VALUES (?, ?, ?, ?)',
+          args: [t.id, m.name, m.dept || '', i++]
+        });
+        seeded++;
+      }
+    }
+    console.log(`[DB] team_members 최초 시드 완료 (${seeded}명)`);
+  }
   console.log('[DB] 연결 및 테이블 준비 완료');
 }
