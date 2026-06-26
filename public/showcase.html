@@ -468,6 +468,7 @@
     .req-close:hover { background: #e2e6ef; color: var(--ink); }
     .req-list { padding: 12px 18px; overflow-y: auto; flex: 1; }
     .req-list .req-empty { color: var(--muted); font-size: 13px; text-align: center; padding: 18px 0; }
+    .req-list .req-note { margin: 0 0 8px; font-size: 11.5px; color: var(--muted); text-align: center; }
     .req-item {
       display: flex; gap: 10px; align-items: flex-start;
       padding: 10px 0; border-bottom: 1px dashed var(--line);
@@ -504,7 +505,7 @@
 </head>
 <body>
   <header class="hero">
-    <a class="corner-btn" href="/">📅 세미나 일정 웹서비스</a>
+    <a class="corner-btn" href="/seminar">📅 세미나 일정 웹서비스</a>
     <span class="eyebrow">SEMINAR · SHOWCASE</span>
     <h1>우리가 <span class="grad">만든 사이트</span>에요</h1>
     <p class="lead">세미나 참여자들이 직접 만들어 배포한 사이트를 한곳에 모았습니다. 카드를 눌러 구경해 보세요.</p>
@@ -528,7 +529,7 @@
   </main>
 
   <footer>
-    세미나 과제 모음 · <a href="/">세미나 일정 웹서비스 →</a>
+    세미나 과제 모음 · <a href="/seminar">세미나 일정 웹서비스 →</a>
   </footer>
 
   <div id="req-modal" class="req-modal" hidden>
@@ -542,7 +543,7 @@
         <textarea id="req-content" maxlength="500"
           placeholder="요청 내용을 적어주세요 (예: 모바일에서 글자가 깨져요 / 다크모드 추가 요청)"></textarea>
         <div class="req-form-row">
-          <input id="req-name" type="text" maxlength="30" placeholder="요청자 이름 (선택)" />
+          <input id="req-email" type="email" maxlength="100" placeholder="내 이메일 (선택 · 완료되면 알림 받기)" />
           <button id="req-submit" type="button">요청 보내기</button>
         </div>
         <p id="req-status" class="req-status"></p>

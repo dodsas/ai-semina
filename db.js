@@ -181,6 +181,17 @@ export async function initDb() {
     )
   `);
   await db.execute('CREATE INDEX IF NOT EXISTS idx_requests_sub ON requests (submission_id)');
+  // 요청자 이메일(완료 알림 콜백용) + 알림 발송 여부 컬럼 보강
+  const reqInfo = await db.execute('PRAGMA table_info(requests)');
+  const reqCols = reqInfo.rows.map((r) => r.name);
+  if (!reqCols.includes('requester_email')) {
+    await db.execute("ALTER TABLE requests ADD COLUMN requester_email TEXT NOT NULL DEFAULT ''");
+    console.log('[DB] requests.requester_email 컬럼 추가');
+  }
+  if (!reqCols.includes('notified')) {
+    await db.execute('ALTER TABLE requests ADD COLUMN notified INTEGER NOT NULL DEFAULT 0');
+    console.log('[DB] requests.notified 컬럼 추가');
+  }
 
   // 팀별 세미나 인원 (관리자가 추가/삭제). 비어 있으면 teams.js 로 최초 시드.
   await db.execute(`

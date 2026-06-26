@@ -16,9 +16,12 @@ const DATE_RE = /^2026-06-(0[1-9]|[12]\d|30)$/;
 
 app.use(express.json());
 
-// 쇼케이스(우리가 만든 사이트 모음)는 /showcase 로 진입
-app.get('/showcase', (_req, res) => {
+// 메인(/)·/showcase = 과제 쇼케이스, 세미나 일정 앱은 /seminar
+app.get(['/', '/showcase'], (_req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'showcase.html'));
+});
+app.get('/seminar', (_req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 app.use(express.static(path.join(__dirname, 'public')));
@@ -47,8 +50,13 @@ function normalizeEmail(raw) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s) ? s : null;
 }
 
-// --- 요청 메일 발송용 SMTP (미설정 시 발송 스킵) ---
-const MAIL_FROM = process.env.MAIL_FROM || process.env.SMTP_USER || 'noreply@showcase.local';
+// --- 메일 발송 ---
+// 1순위: Resend HTTP API(포트 443 — Render 등 PaaS 에서 SMTP 차단 우회)
+// 2순위: SMTP(nodemailer). 둘 다 없으면 발송 스킵(요청은 저장됨).
+const MAIL_FROM = process.env.MAIL_FROM || process.env.SMTP_USER || 'onboarding@resend.dev';
+const BREVO_API_KEY = process.env.BREVO_API_KEY || '';
+const RESEND_API_KEY = process.env.RESEND_API_KEY || '';
+
 let mailer = null;
 if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) {
   mailer = nodemailer.createTransport({
@@ -58,31 +66,90 @@ if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) {
     auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
     connectionTimeout: 8000, greetingTimeout: 8000, socketTimeout: 10000
   });
-  console.log('[mail] SMTP 발송 활성');
-} else {
-  console.log('[mail] SMTP 미설정 — 요청은 저장되며 메일은 발송되지 않음');
 }
 
-async function sendRequestMail(to, site, content, requester) {
-  if (!mailer) return false;
-  const base = process.env.RENDER_EXTERNAL_URL || '';
-  const link = base ? `${base}/showcase` : '/showcase';
-  try {
-    await mailer.sendMail({
-      from: MAIL_FROM,
-      to,
-      subject: `[과제 쇼케이스] "${site.title || site.url}" 사이트에 새 요청이 등록되었습니다`,
-      text:
-        `사이트: ${site.title || ''} (${site.url})\n` +
-        `요청자: ${requester || '익명'}\n\n` +
-        `요청 내용:\n${content}\n\n` +
-        `쇼케이스에서 확인: ${link}`
-    });
-    return true;
-  } catch (err) {
-    console.error('[mail] 발송 실패:', err.message);
-    return false;
+if (BREVO_API_KEY) console.log(`[mail] Brevo(HTTP) 발송 활성 · from=${MAIL_FROM}`);
+else if (RESEND_API_KEY) console.log(`[mail] Resend(HTTP) 발송 활성 · from=${MAIL_FROM}`);
+else if (mailer) console.log('[mail] SMTP 발송 활성');
+else console.log('[mail] 발송 수단 미설정 — 요청은 저장되며 메일은 발송되지 않음');
+
+// 메일 본문에 들어갈 쇼케이스 전체 URL (고정, 필요 시 SHOWCASE_URL 로 override)
+const SHOWCASE_URL = process.env.SHOWCASE_URL || 'https://ai-semina-ap4u.onrender.com/showcase';
+const showcaseLink = () => SHOWCASE_URL;
+
+// 통합 발송: Brevo → Resend → SMTP 순으로 시도 (앞 것이 실패/미설정이면 다음으로)
+async function deliverMail({ to, subject, text }) {
+  if (BREVO_API_KEY) {
+    try {
+      const resp = await fetch('https://api.brevo.com/v3/smtp/email', {
+        method: 'POST',
+        headers: { 'api-key': BREVO_API_KEY, 'content-type': 'application/json', accept: 'application/json' },
+        body: JSON.stringify({
+          sender: { email: MAIL_FROM, name: '과제 쇼케이스' },
+          to: [{ email: to }],
+          subject,
+          textContent: text
+        }),
+        signal: AbortSignal.timeout(10000)
+      });
+      if (resp.ok) return true;
+      const errText = await resp.text().catch(() => '');
+      console.error('[mail] Brevo 실패:', resp.status, errText.slice(0, 300));
+    } catch (err) {
+      console.error('[mail] Brevo 오류:', err.message);
+    }
   }
+  if (RESEND_API_KEY) {
+    try {
+      const resp = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ from: MAIL_FROM, to: [to], subject, text }),
+        signal: AbortSignal.timeout(10000)
+      });
+      if (resp.ok) return true;
+      const errText = await resp.text().catch(() => '');
+      console.error('[mail] Resend 실패:', resp.status, errText.slice(0, 300));
+      // Resend 실패 시 SMTP 폴백 시도
+    } catch (err) {
+      console.error('[mail] Resend 오류:', err.message);
+    }
+  }
+  if (mailer) {
+    try {
+      await mailer.sendMail({ from: MAIL_FROM, to, subject, text });
+      return true;
+    } catch (err) {
+      console.error('[mail] SMTP 실패:', err.message);
+    }
+  }
+  return false;
+}
+
+// 담당자에게 새 요청 알림
+function sendRequestMail(to, site, content, requesterEmail) {
+  return deliverMail({
+    to,
+    subject: `[과제 쇼케이스] "${site.title || site.url}" 사이트에 새 요청이 등록되었습니다`,
+    text:
+      `사이트: ${site.title || ''} (${site.url})\n` +
+      `요청자: ${requesterEmail || '익명'}\n\n` +
+      `요청 내용:\n${content}\n\n` +
+      `쇼케이스에서 확인: ${showcaseLink()}`
+  });
+}
+
+// 요청자에게 작업 완료 콜백 알림
+function sendDoneMail(to, site, content) {
+  return deliverMail({
+    to,
+    subject: `[과제 쇼케이스] 요청하신 작업이 완료되었습니다 — "${site.title || site.url}"`,
+    text:
+      `요청하신 내용이 처리 완료되었습니다. 🎉\n\n` +
+      `사이트: ${site.title || ''} (${site.url})\n\n` +
+      `요청 내용:\n${content}\n\n` +
+      `쇼케이스에서 확인: ${showcaseLink()}`
+  });
 }
 
 // --- 관리자 인증 (메모리 토큰; 재시작 시 재로그인 필요) ---
@@ -718,15 +785,20 @@ app.get('/api/requests', async (req, res) => {
   const sid = String(req.query.sid || '');
   if (!sid) return res.status(400).json({ error: 'missing sid' });
   try {
-    const r = await db.execute({
-      sql: `SELECT id, content, requester, done, created_at FROM requests
-            WHERE submission_id = ? ORDER BY done ASC, created_at DESC`,
-      args: [sid]
-    });
+    // 최신 5개만 노출 (이전 데이터는 DB 에만 보관)
+    const [r, cnt] = await Promise.all([
+      db.execute({
+        sql: `SELECT id, content, requester_email, done, notified, created_at FROM requests
+              WHERE submission_id = ? ORDER BY created_at DESC LIMIT 5`,
+        args: [sid]
+      }),
+      db.execute({ sql: 'SELECT COUNT(*) AS n FROM requests WHERE submission_id = ?', args: [sid] })
+    ]);
     res.json({
+      total: Number(cnt.rows[0]?.n || 0),
       requests: r.rows.map((x) => ({
-        id: x.id, content: x.content, requester: x.requester || '',
-        done: !!x.done, createdAt: x.created_at
+        id: x.id, content: x.content, requesterEmail: x.requester_email || '',
+        done: !!x.done, notified: !!x.notified, createdAt: x.created_at
       }))
     });
   } catch (err) {
@@ -735,12 +807,13 @@ app.get('/api/requests', async (req, res) => {
   }
 });
 
-// 요청 등록 — 담당자(인원) 이메일이 등록돼 있으면 메일 발송
+// 요청 등록 — 담당자(인원) 이메일이 등록돼 있으면 메일 발송. 요청자 이메일(선택)은 완료 알림용.
 app.post('/api/requests', async (req, res) => {
   const sid = typeof req.body?.sid === 'string' ? req.body.sid : '';
   const content = typeof req.body?.content === 'string' ? req.body.content.trim().slice(0, 500) : '';
-  const requester = typeof req.body?.requester === 'string' ? req.body.requester.trim().slice(0, 30) : '';
+  const requesterEmail = normalizeEmail(req.body?.email);
   if (!sid || !content) return res.status(400).json({ error: 'sid and content required' });
+  if (requesterEmail === null) return res.status(400).json({ error: 'invalid email' });
   try {
     const sub = await db.execute({
       sql: 'SELECT id, team, member, title, url FROM submissions WHERE id = ?',
@@ -750,13 +823,13 @@ app.post('/api/requests', async (req, res) => {
     const s = sub.rows[0];
     const id = 'r_' + crypto.randomBytes(9).toString('hex');
     await db.execute({
-      sql: 'INSERT INTO requests (id, submission_id, content, requester) VALUES (?, ?, ?, ?)',
-      args: [id, sid, content, requester]
+      sql: 'INSERT INTO requests (id, submission_id, content, requester_email) VALUES (?, ?, ?, ?)',
+      args: [id, sid, content, requesterEmail]
     });
     const to = emailOf(s.team, s.member);
     let emailed = false;
     if (to) {
-      emailed = await sendRequestMail(to, s, content, requester);
+      emailed = await sendRequestMail(to, s, content, requesterEmail);
       if (emailed) await db.execute({ sql: 'UPDATE requests SET emailed = 1 WHERE id = ?', args: [id] });
     }
     res.json({ ok: true, id, hasEmail: !!to, emailed });
@@ -766,15 +839,34 @@ app.post('/api/requests', async (req, res) => {
   }
 });
 
-// 요청 완료 토글 (적용 완료 체크)
+// 요청 완료 토글 — 완료로 바뀌고 요청자 이메일이 있으면 1회 완료 알림 발송
 app.post('/api/requests/done', async (req, res) => {
   const id = typeof req.body?.id === 'string' ? req.body.id : '';
   const done = req.body?.done ? 1 : 0;
   if (!id) return res.status(400).json({ error: 'missing id' });
   try {
-    const r = await db.execute({ sql: 'UPDATE requests SET done = ? WHERE id = ?', args: [done, id] });
-    if (!r.rowsAffected) return res.status(404).json({ error: 'not found' });
-    res.json({ ok: true, id, done: !!done });
+    const cur = await db.execute({
+      sql: 'SELECT submission_id, content, requester_email, notified FROM requests WHERE id = ?',
+      args: [id]
+    });
+    if (!cur.rows.length) return res.status(404).json({ error: 'not found' });
+    const rq = cur.rows[0];
+    await db.execute({ sql: 'UPDATE requests SET done = ? WHERE id = ?', args: [done, id] });
+
+    let notified = false;
+    if (done && rq.requester_email && !rq.notified) {
+      const sub = await db.execute({
+        sql: 'SELECT title, url FROM submissions WHERE id = ?',
+        args: [rq.submission_id]
+      });
+      const site = sub.rows[0] || { title: '', url: '' };
+      const ok = await sendDoneMail(rq.requester_email, site, rq.content);
+      if (ok) {
+        await db.execute({ sql: 'UPDATE requests SET notified = 1 WHERE id = ?', args: [id] });
+        notified = true;
+      }
+    }
+    res.json({ ok: true, id, done: !!done, notified });
   } catch (err) {
     console.error('[POST /api/requests/done]', err);
     res.status(500).json({ error: 'db error' });

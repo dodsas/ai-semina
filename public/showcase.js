@@ -26,7 +26,7 @@ const reqModal = document.getElementById('req-modal');
 const reqTitle = document.getElementById('req-title');
 const reqList = document.getElementById('req-list');
 const reqContent = document.getElementById('req-content');
-const reqName = document.getElementById('req-name');
+const reqEmail = document.getElementById('req-email');
 const reqSubmit = document.getElementById('req-submit');
 const reqStatus = document.getElementById('req-status');
 const reqClose = document.getElementById('req-close');
@@ -319,7 +319,7 @@ function openRequests(site) {
   reqDirty = false;
   reqTitle.textContent = `💬 요청 — ${site.title || site.url}`;
   reqContent.value = '';
-  reqName.value = '';
+  reqEmail.value = '';
   reqStatus.textContent = '';
   reqStatus.className = 'req-status';
   reqList.innerHTML = '<p class="req-empty">불러오는 중…</p>';
@@ -340,19 +340,25 @@ async function loadRequests() {
     if (!res.ok) throw new Error('load failed');
     const data = await res.json();
     if (reqSid !== sid) return;
-    renderRequests(data.requests || []);
+    renderRequests(data.requests || [], data.total || 0);
   } catch (err) {
     console.error(err);
     reqList.innerHTML = '<p class="req-empty">목록을 불러오지 못했습니다.</p>';
   }
 }
 
-function renderRequests(items) {
+function renderRequests(items, total) {
   if (!items.length) {
     reqList.innerHTML = '<p class="req-empty">아직 등록된 요청이 없어요. 첫 요청을 남겨보세요.</p>';
     return;
   }
   reqList.innerHTML = '';
+  if (total > items.length) {
+    const note = document.createElement('p');
+    note.className = 'req-note';
+    note.textContent = `최근 ${items.length}건만 표시 · 이전 ${total - items.length}건은 보관됨`;
+    reqList.appendChild(note);
+  }
   for (const it of items) {
     const row = document.createElement('div');
     row.className = 'req-item' + (it.done ? ' done' : '');
@@ -363,10 +369,11 @@ function renderRequests(items) {
     cb.addEventListener('change', () => toggleRequestDone(it.id, cb.checked, row));
     const body = document.createElement('div');
     body.className = 'ri-body';
-    const meta = [it.requester || '익명', fmtKst(it.createdAt)].filter(Boolean).join(' · ');
+    const parts = [it.requesterEmail || '익명', fmtKst(it.createdAt)];
+    if (it.done && it.notified && it.requesterEmail) parts.push('완료 알림 발송됨');
     body.innerHTML =
       `<div class="ri-text">${escapeHtml(it.content)}</div>` +
-      `<div class="ri-meta">${escapeHtml(meta)}</div>`;
+      `<div class="ri-meta">${escapeHtml(parts.filter(Boolean).join(' · '))}</div>`;
     row.append(cb, body);
     reqList.appendChild(row);
   }
@@ -380,8 +387,10 @@ async function toggleRequestDone(id, done, row) {
       body: JSON.stringify({ id, done })
     });
     if (!res.ok) throw new Error('toggle failed');
+    const data = await res.json().catch(() => ({}));
     row.classList.toggle('done', done);
     reqDirty = true;
+    if (data.notified) loadRequests(); // 완료 알림 발송 표시 반영
   } catch (err) {
     console.error(err);
     alert('상태 변경에 실패했습니다.');
@@ -399,8 +408,14 @@ async function submitRequest() {
     const res = await fetch('/api/requests', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sid: reqSid, content, requester: reqName.value.trim() })
+      body: JSON.stringify({ sid: reqSid, content, email: reqEmail.value.trim() })
     });
+    if (res.status === 400) {
+      reqStatus.textContent = '이메일 형식이 올바르지 않습니다. (이메일은 비워도 됩니다)';
+      reqStatus.className = 'req-status warn';
+      reqEmail.focus();
+      return;
+    }
     if (!res.ok) throw new Error('submit failed');
     const data = await res.json();
     reqContent.value = '';
