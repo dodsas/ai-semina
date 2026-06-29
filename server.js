@@ -553,6 +553,16 @@ async function checkSiteChanges(trigger = 'auto') {
   for (const row of existing.rows) prevByUrl[row.url] = row.html_hash;
   const baselineEmpty = existing.rows.length === 0; // 최초 기준선
 
+  // 하루(24h) 이상 켜져 있던 마커는 무조건 해제 — 일일 배치/새로고침 모두에서 실행.
+  //  - fetch 실패(해시 못 받음) 사이트는 아래 루프에서 건너뛰므로, 이 사전 정리가 없으면 마커가 영영 안 꺼진다.
+  //  - 24h 초과 마커는 "오늘 변경분"이 아니므로, 같은 날 새로고침에서 꺼도 안전.
+  //  - 오늘 새로 감지되는 변경은 이후 루프에서 다시 켜지므로(changed_at=now) 영향 없음.
+  if (!baselineEmpty) {
+    await db.execute(
+      "UPDATE site_pages SET is_new = 0 WHERE is_new = 1 AND (changed_at IS NULL OR changed_at <= datetime('now', '-1 day'))"
+    );
+  }
+
   const results = await mapPool(urls, 6, async (url) => ({ url, hash: await fetchPageHash(url) }));
   let changed = 0, fresh = 0, failed = 0;
   for (const { url, hash } of results) {
